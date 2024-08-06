@@ -34,20 +34,16 @@
  */
 
 /****************** START CHANGE ******************/
-
 const HUMIDITY_THRESHOLD = 10; // Humidity increase threshold
 const SWITCH_ID = 0; // ID of the switch to control
 const BLU_MAC = "38:39:8f:70:b2:4e"; //should be only lower case
-const BUTTON_PRESS_DURATION = 5 * 60000; // Button press duration in milliseconds (5 minutes)
 
-// Assuming you have access to the switch state and button press event
-const switchStatusArray = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
 let switchState = false; // Initial state
 let previousHumidity = 60; // Stores the previous humidity reading
 
 function isHumidityHigh(humidity) {
-    return humidity > previousHumidity + HUMIDITY_THRESHOLD;
-  }
+  return humidity > previousHumidity + HUMIDITY_THRESHOLD;
+}
 
 let CONFIG = {
   // List of scenes
@@ -68,39 +64,43 @@ let CONFIG = {
         // Logs a message to the console
         console.log("The button was pressed");
 
-        //toggles the first build in relay
-        Shelly.call("Switch.Toggle", { id: SWITCH_ID });
+        //toggles the first built-in relay
+        Shelly.call("Switch.Toggle", { id: SWITCH_ID }); // Assuming Shelly.call is available
+
+        // Set a timer to turn it off after 5 minutes
+        setTimeout(() => {
+          Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
+          console.log('Switch turned OFF (timer)');
+        }, 5 * 60 * 1000); // 5 minutes in milliseconds
       },
     },
     /** SCENE END 0 **/
-
     /** SCENE START 1 - Shelly BLU Door/Window example **/
     {
       // when event name is `shelly-blu` and window is equal to 1 (open)
       conditions: {
         event: "shelly-blu",
         address: BLU_MAC, //should be only lower case
-        humidity: {
-            compare: isHumidityHigh, // Custom function for comparison
-            },
-        },
+        humidity: isHumidityHigh(), // Custom function for comparison
+      },
 
       action: function (data) {
-        // Logs a message to the console
-        console.log("Humidity trigger");
-
-        //turns on the first build-in relay
-        Shelly.call("Switch.Set", { id: SWITCH_ID, on: true });
+//        Shelly.call("Switch.Toggle", { id: SWITCH_ID });
+        handleButtonPress(data);
+        // publish a message via MQTT with the addess of the Shelly BLU Door/Window
+//        MQTT.publish(
+//          "mymqttbroker/shelly/window/open",
+//          "The window with addess " + data.address + " was opened"
+//        );
       },
     },
     /** SCENE END 1 **/
-
     /** SCENE START 2 - Shelly BLU Scanner example **/
     {
       // when event name is `shelly-blu`
       conditions: {
-        address: BLU_MAC, //should be only lower case
         event: "shelly-blu",
+        address: BLU_MAC, //should be only lower case
       },
 
       action: function (data) {
@@ -112,27 +112,30 @@ let CONFIG = {
   ],
 
   //When set to true, debug messages will be logged to the console
-  debug: false,
+  debug: true,
 };
 /****************** STOP CHANGE ******************/
 
-function handleButtonPress() {
-  switchState = switchStatusArray[0].output;
+function handleButtonPress(data) {
+  const switchStatusArray = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
+  if (switchStatusArray) {
+    switchState = switchStatusArray.output;
+    console.log("Switch state:", switchState); // true or false
+  } else {
+    console.log("Error getting switch state");
+  }
+
   if (!switchState) {
     // Switch is off, turn it on
-    switchState = true;
     console.log('Switch turned ON');
-    
-    // Set a timer to turn it off after 5 minutes
-    setTimeout(() => {
-      switchState = false;
-      console.log('Switch turned OFF (timer)');
-    }, 5 * 60 * 1000); // 5 minutes in milliseconds
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Assuming Shelly.call is available
+    switchState = true;
+  } else {
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
+    switchState = false;
+    console.log('Switch turned OFF (unconditional)');
   }
 }
-
-// Attach this function to your button press event
-// Example: buttonElement.addEventListener('click', handleButtonPress);
 
 // Logs the provided message with an optional prefix to the console
 function logger(message, prefix) {
@@ -173,7 +176,6 @@ let SceneManager = {
 
   // Process new data and check if any scenes should be executed
   onNewData: function (data) {
-//    previousHumidity = humidity;
     logger(["New data received", JSON.stringify(data)], "Info");
     for (let sceneIndex = 0; sceneIndex < this.scenes.length; sceneIndex++) {
       logger(
