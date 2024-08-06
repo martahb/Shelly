@@ -42,6 +42,7 @@ let switchState = false; // Initial state
 let previousHumidity = 60; // Stores the previous humidity reading
 
 function isHumidityHigh(humidity) {
+  console.log("Is humidity high?");
   return humidity > previousHumidity + HUMIDITY_THRESHOLD;
 }
 
@@ -65,14 +66,16 @@ let CONFIG = {
         console.log("The button was pressed");
 
         //toggles the first built-in relay
-        Shelly.call("Switch.Toggle", { id: SWITCH_ID }); // Assuming Shelly.call is available
+//        Shelly.call("Switch.Toggle", { id: SWITCH_ID }); // Assuming Shelly.call is available
 
         // Set a timer to turn it off after 5 minutes
-        setTimeout(() => {
-          Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
-          console.log('Switch turned OFF (timer)');
-        }, 5 * 60 * 1000); // 5 minutes in milliseconds
+//        setTimeout(() => {
+//          Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
+//          console.log('Switch turned OFF (timer)');
+//        }, 5 * 60 * 1000); // 5 minutes in milliseconds
+        handleButtonPress(data);
       },
+
     },
     /** SCENE END 0 **/
     /** SCENE START 1 - Shelly BLU Door/Window example **/
@@ -86,7 +89,8 @@ let CONFIG = {
 
       action: function (data) {
 //        Shelly.call("Switch.Toggle", { id: SWITCH_ID });
-        handleButtonPress(data);
+        console.log("HUmidity is high");
+//        handleButtonPress(data);
         // publish a message via MQTT with the addess of the Shelly BLU Door/Window
 //        MQTT.publish(
 //          "mymqttbroker/shelly/window/open",
@@ -128,8 +132,14 @@ function handleButtonPress(data) {
   if (!switchState) {
     // Switch is off, turn it on
     console.log('Switch turned ON');
+    
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Assuming Shelly.call is available
     switchState = true;
+    // Set a timer to turn it off after 5 minutes
+    setTimeout(() => {
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
+    console.log('Switch turned OFF (timer)');
+    }, 5 * 60 * 1000); // 5 minutes in milliseconds
   } else {
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
     switchState = false;
