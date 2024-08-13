@@ -4,6 +4,7 @@ const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // Ensure the MAC address is 
 
 let previousHumidity = 40;
 let switchState = false;
+let buttonTimer = null;
 
 // Function to check if humidity is high
 function isHumidityHigh(humidity) {
@@ -20,7 +21,7 @@ function isHumidityLow(humidity) {
 function handleHighHumidity(data) {
   switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
   
-  if (switchState != undefined) {
+  if (switchState !== undefined) {
     // Switch state is valid, handle it
   } else {
     console.log("Error getting switch state", switchState);
@@ -33,16 +34,18 @@ function handleHighHumidity(data) {
     switchState = true;
     
     // Set a timeout to turn the switch off after 25 minutes
-        humidityTimer = Timer.set(25 * 60 * 1000,
+        function startHumidityTimer() {
+          humidityTimer = Timer.set(25 * 60 * 1000,
           false,
-          {
+          function () {
             Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
             console.log('Switch turned OFF (timer)');
           },
-          null);
-        Timer.clear(humidityTimer);      }
-    switchState = false;
-}
+          null);};
+        switchState = false;
+        function stopButtonTimer() {
+        Timer.clear(humidityTimer);      };};}
+
 
 function handleLowHumidity(data) {
   if (switchState) {
@@ -70,14 +73,19 @@ let CONFIG = {
         console.log("The button was pressed");
         Shelly.call("Switch.Toggle", { id: SWITCH_ID });
     // Set a timeout to turn the switch off after 5 minutes
-        buttonTimer = Timer.set(5 * 10 * 1000,
+        if (switchState) {
+        function startButtonTimer() {
+          buttonTimer = Timer.set(5 * 60 * 1000,
           false,
-          {
+          function () {
             Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
             console.log('Switch turned OFF (timer)');
           },
           null);
-        Timer.clear(buttonTimer);
+        };}
+        function stopButtonTimer() {
+          Timer.clear(buttonTimer);
+         }
       },
     },
     /** SCENE END 0 **/
@@ -94,10 +102,10 @@ let CONFIG = {
       action: function (data, info) {
         console.log("Humidity is high.");
         handleHighHumidity(data);
-        info = Shelly.getDeviceInfo();
+        infStruct = Shelly.getDeviceInfo();
         MQTT.publish(
           "mymqttbroker/shelly/humidity",
-          "Humidity at " + data.address + " / " + info.name + " is high."
+          "Humidity at " + data.address + " / " + infStruct.name + " is high."
         );
       },
     },
