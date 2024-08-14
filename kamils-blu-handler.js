@@ -4,16 +4,20 @@ const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // Ensure the MAC address is 
 const HUMIDITY_TIMEOUT = 25;
 const BUTTON_TIMEOUT = 5;
 
-let previousHumidity = 40;
+let previousHumidity = null;
 let switchState = false;
 let buttonTimer = null;
 let humidityTimer = null;
 let workingTimer = null;
-
+let tempHumidity = null;
+  
 // Function to check if humidity is high
 function isHumidityHigh(humidity) {
-//  console.log("High - Previous humidity: ", previousHumidity, " humidity: ", humidity);
-  return humidity > previousHumidity + HUMIDITY_THRESHOLD;
+  tempHumidity = previousHumidity;
+  previousHumidity = humidity;
+  console.log("High - Previous humidity: ", tempHumidity, " humidity: ", humidity);
+  return humidity > tempHumidity + HUMIDITY_THRESHOLD;
+  
 }
 
 // Function to check if humidity is back to normal
@@ -69,13 +73,29 @@ function handleHighHumidity(data) {
   console.log('Handle switch state: ', JSON.stringify(switchState));
 }
 function handleLowHumidity(data) {
-  if (switchState) {
-    // Switch is on, turn it off
-    Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
-    console.log('Switch turned OFF');
-    switchState = false;
-    stopTimer(humidityTimer);
-  }
+  Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
+    function(result, error_code, error_message, ud) {
+      if (error_code === 0) { // Check if the call was successful
+        switchState = result.output;
+        console.log("Humidity switch state:", switchState);
+
+        // You can now use `switchState` here or trigger other functions
+        if (switchState) {
+          // Switch is n, turn it off
+          console.log('Switch turned OFF');
+          Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
+          switchState = false;
+          // Set a timeout to turn the switch off after 25 minutes
+          stopTimer(humidityTimer);
+      } else {
+          // Do something else if the switch is off
+        }
+      } else {
+        console.log("Error getting switch status:", error_message);
+      }
+    }, 
+    null
+  );
 }
 let CONFIG = {
   debug: false,
@@ -386,15 +406,16 @@ executeScene: function (sceneIndex, data) {
   },
 };
 // Initialize function for the scene manager and register the event handler
-function init(initialHumidity) {
+function init(tempHumidity) {
   SceneManager.setScenes(CONFIG.scenes);
   Shelly.addEventHandler(SceneManager.eventHandler, SceneManager);
 
-  if (typeof initialHumidity !== "undefined") {
-    previousHumidity = initialHumidity;
+  if (typeof tempHumidity !== "undefined") {
+    previousHumidity = tempHumidity;
   }
   switchState = Shelly.call("Switch.GetStatus", {id: 0});
-  console.log("init switchState: ", JSON.stringify(switchState));
+  console.log("previousHumidity: ", JSON.stringify(previousHumidity));
+  console.log("tempHumidity: ", JSON.stringify(tempHumidity));
   logger("Scene Manager successfully started", "Info");
 }
 
