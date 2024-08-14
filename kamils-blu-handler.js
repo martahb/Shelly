@@ -1,11 +1,14 @@
 const HUMIDITY_THRESHOLD = 10; // Humidity increase threshold
 const SWITCH_ID = 0; // ID of the switch to control
 const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // Ensure the MAC address is lowercase
+const HUMIDITY_TIMEOUT = 25;
+const BUTTON_TIMEOUT = 5;
 
 let previousHumidity = 40;
 let switchState = false;
 let buttonTimer = null;
 let humidityTimer = null;
+let workingTimer = null;
 
 // Function to check if humidity is high
 function isHumidityHigh(humidity) {
@@ -18,19 +21,22 @@ function isHumidityLow(humidity) {
 //  console.log("Low - Previous humidity: ", previousHumidity, " humidity: ", humidity);
   return humidity <= previousHumidity + HUMIDITY_THRESHOLD; // +1?
 }
-function startHumidityTimer() {
-  humidityTimer = Timer.set(25 * 60 * 1000,
+function startTimer(timer, timeout) {
+  console.log('startTimer');
+  timer = Timer.set(timeout * 60 * 1000,
     false,
     function () 
     {
       Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
-      console.log('Switch turned OFF (timer)');
+      console.log('Switch turned OFF (timer): ',timer);
     },
     null);
   switchState = false;
   };
-function stopHumidityTimer() {
-  Timer.clear(humidityTimer);      };
+function stopTimer(timer) {
+  console.log('stopTimer');
+  Timer.clear(timer);
+  };
       
 function handleHighHumidity(data) {
 //  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
@@ -45,9 +51,9 @@ function handleHighHumidity(data) {
       switchState = true;
     
       // Set a timeout to turn the switch off after 25 minutes
-      startHumidityTimer();
-      stopHumidityTimer();
-    };
+      startTimer(humidityTimer, HUMIDITY_TIMEOUT);
+      stopTimer(humidityTimer);
+      }
   } else {
     console.log("Error getting switch state", switchState);
   }
@@ -55,12 +61,11 @@ function handleHighHumidity(data) {
 function handleLowHumidity(data) {
   if (switchState) {
     // Switch is on, turn it off
-    console.log('Switch turned OFF');
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
+    console.log('Switch turned OFF');
     switchState = false;
   }
 }
-
 let CONFIG = {
   debug: false,
   scenes: [
@@ -75,22 +80,22 @@ let CONFIG = {
         },
       },
       action: function (data) {
+//        let switchState2 = null;
         console.log("The button was pressed");
         Shelly.call("Switch.Toggle", { id: SWITCH_ID });
+//        function getOutput() {switchState2 = Shelly.getComponentStatus("switch:0").output;};
+//        data = Timer.set(500, false, getOutput);
+//        Timer.clear(data);
+        switchState = Shelly.getComponentStatus("switch:0").output;
+//        startTimer(workingTimer, 1);
+//        stopTimer(workingTimer);
+//        data = Shelly.getComponentStatus("switch:0").output;
+        console.log("CONFIG switchState: ", switchState);
     // Set a timeout to turn the switch off after 5 minutes
-        if (switchState) {
-        function startButtonTimer() {
-          buttonTimer = Timer.set(5 * 60 * 1000,
-          false,
-          function () {
-            Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
-            console.log('Switch turned OFF (timer)');
-          },
-          null);
-        };}
-        function stopButtonTimer() {
-          Timer.clear(buttonTimer);
-         }
+        if (!switchState) { // reversed logic due to delay in reporting state
+        startTimer(buttonTimer, BUTTON_TIMEOUT);
+        stopTimer(buttonTimer);
+        }
       },
     },
     /** SCENE END 0 **/
@@ -147,7 +152,9 @@ let CONFIG = {
       },
     },
     /** SCENE END 3 **/
-  ]
+  ],
+  //When set to true, debug messages will be logged to the console
+  debug: false,
 };
 
 // Logs the provided message with an optional prefix to the console
@@ -365,4 +372,4 @@ function init(initialHumidity) {
 }
 
 // Initialize with a defined humidity value
-init(40);
+init();
