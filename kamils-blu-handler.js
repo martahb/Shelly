@@ -5,6 +5,7 @@ const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // Ensure the MAC address is 
 let previousHumidity = 40;
 let switchState = false;
 let buttonTimer = null;
+let humidityTimer = null;
 
 // Function to check if humidity is high
 function isHumidityHigh(humidity) {
@@ -15,38 +16,42 @@ function isHumidityHigh(humidity) {
 // Function to check if humidity is back to normal
 function isHumidityLow(humidity) {
 //  console.log("Low - Previous humidity: ", previousHumidity, " humidity: ", humidity);
-  return humidity <= previousHumidity + HUMIDITY_THRESHOLD;
+  return humidity <= previousHumidity + HUMIDITY_THRESHOLD; // +1?
 }
-
+function startHumidityTimer() {
+  humidityTimer = Timer.set(25 * 60 * 1000,
+    false,
+    function () 
+    {
+      Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
+      console.log('Switch turned OFF (timer)');
+    },
+    null);
+  switchState = false;
+  };
+function stopHumidityTimer() {
+  Timer.clear(humidityTimer);      };
+      
 function handleHighHumidity(data) {
-  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
-  
+//  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
+  switchState = Shelly.getComponentStatus("switch:0").output;
+  console.log('Switch state: ', JSON.stringify(switchState));
   if (switchState !== undefined) {
     // Switch state is valid, handle it
+    if (!switchState) {
+    // Switch is off, turn it on
+      console.log('Switch turned ON');
+      Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Turn the switch on
+      switchState = true;
+    
+      // Set a timeout to turn the switch off after 25 minutes
+      startHumidityTimer();
+      stopHumidityTimer();
+    };
   } else {
     console.log("Error getting switch state", switchState);
   }
-
-  if (!switchState) {
-    // Switch is off, turn it on
-    console.log('Switch turned ON');
-    Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Turn the switch on
-    switchState = true;
-    
-    // Set a timeout to turn the switch off after 25 minutes
-        function startHumidityTimer() {
-          humidityTimer = Timer.set(25 * 60 * 1000,
-          false,
-          function () {
-            Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Turn the switch off
-            console.log('Switch turned OFF (timer)');
-          },
-          null);};
-        switchState = false;
-        function stopButtonTimer() {
-        Timer.clear(humidityTimer);      };};}
-
-
+}
 function handleLowHumidity(data) {
   if (switchState) {
     // Switch is on, turn it off
@@ -356,7 +361,6 @@ function init(initialHumidity) {
   if (typeof initialHumidity !== "undefined") {
     previousHumidity = initialHumidity;
   }
-
   logger("Scene Manager successfully started", "Info");
 }
 
