@@ -40,24 +40,33 @@ function stopTimer(timer) {
   };
       
 function handleHighHumidity(data) {
-//  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
-  switchState = Shelly.getComponentStatus("switch:0").output;
-  console.log('Switch state: ', JSON.stringify(switchState));
-  if (switchState !== undefined) {
-    // Switch state is valid, handle it
-    if (!switchState) {
-    // Switch is off, turn it on
-      console.log('Switch turned ON');
-      Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Turn the switch on
-      switchState = true;
-    
-      // Set a timeout to turn the switch off after 25 minutes
-      startTimer(humidityTimer, HUMIDITY_TIMEOUT);
-//      stopTimer(humidityTimer);
+  //  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
+  Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
+    function(result, error_code, error_message, ud) {
+      if (error_code === 0) { // Check if the call was successful
+        switchState = result.output;
+        console.log("Humidity switch state:", switchState);
+
+        // You can now use `switchState` here or trigger other functions
+        if (!switchState) {
+          // Switch is off, turn it on
+          console.log('Switch turned ON');
+          Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Turn the switch on
+          switchState = true;
+          // Set a timeout to turn the switch off after 25 minutes
+          startTimer(humidityTimer, HUMIDITY_TIMEOUT);
+      } else {
+          // Do something else if the switch is off
+        }
+
+      } else {
+        console.log("Error getting switch status:", error_message);
       }
-  } else {
-    console.log("Error getting switch state", switchState);
-  }
+    }, 
+    null
+  );
+  //  switchState = Shelly.getComponentStatus("switch:0").output;
+  console.log('Handle switch state: ', JSON.stringify(switchState));
 }
 function handleLowHumidity(data) {
   if (switchState) {
@@ -84,19 +93,33 @@ let CONFIG = {
 //        let switchState2 = null;
         console.log("The button was pressed");
         Shelly.call("Switch.Toggle", { id: SWITCH_ID });
-//        function getOutput() {switchState2 = Shelly.getComponentStatus("switch:0").output;};
+        Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
+          function(result, error_code, error_message, ud) {
+            if (error_code === 0) { // Check if the call was successful
+              switchState = result.output;
+              console.log("Switch state:", switchState);
+      
+              // You can now use `switchState` here or trigger other functions
+              if (switchState) {
+                startTimer(buttonTimer, BUTTON_TIMEOUT);
+              } else {
+                // Do something else if the switch is off
+              }
+    
+            } else {
+              console.log("Error getting switch status:", error_message);
+            }
+          }, 
+          null
+        );
+//        function getOutput() {switchState2 = Shelly.call("Switch.GetStatus", {id: 0});};
 //        data = Timer.set(500, false, getOutput);
 //        Timer.clear(data);
-        switchState = Shelly.getComponentStatus("switch:0").output;
+//        switchState = Shelly.getComponentStatus("switch:0").output;
 //        startTimer(workingTimer, 1);
 //        stopTimer(workingTimer);
-//        data = Shelly.getComponentStatus("switch:0").output;
-        console.log("CONFIG switchState: ", switchState);
+        console.log("CONFIG switchState: ", JSON.stringify(switchState));
     // Set a timeout to turn the switch off after 5 minutes
-        if (!switchState) { // reversed logic due to delay in reporting state
-        startTimer(buttonTimer, BUTTON_TIMEOUT);
-//        stopTimer(buttonTimer);
-        }
       },
     },
     /** SCENE END 0 **/
@@ -369,6 +392,8 @@ function init(initialHumidity) {
   if (typeof initialHumidity !== "undefined") {
     previousHumidity = initialHumidity;
   }
+  switchState = Shelly.call("Switch.GetStatus", {id: 0});
+  console.log("init switchState: ", JSON.stringify(switchState));
   logger("Scene Manager successfully started", "Info");
 }
 
