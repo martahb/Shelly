@@ -23,6 +23,7 @@ function isHumidityLow(humidity) {
 }
 function startTimer(timer, timeout) {
   console.log('startTimer');
+  Timer.clear(timer);
   timer = Timer.set(timeout * 60 * 1000,
     false,
     function () 
@@ -52,7 +53,7 @@ function handleHighHumidity(data) {
     
       // Set a timeout to turn the switch off after 25 minutes
       startTimer(humidityTimer, HUMIDITY_TIMEOUT);
-      stopTimer(humidityTimer);
+//      stopTimer(humidityTimer);
       }
   } else {
     console.log("Error getting switch state", switchState);
@@ -94,7 +95,7 @@ let CONFIG = {
     // Set a timeout to turn the switch off after 5 minutes
         if (!switchState) { // reversed logic due to delay in reporting state
         startTimer(buttonTimer, BUTTON_TIMEOUT);
-        stopTimer(buttonTimer);
+//        stopTimer(buttonTimer);
         }
       },
     },
