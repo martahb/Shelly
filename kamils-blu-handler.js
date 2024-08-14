@@ -8,14 +8,13 @@ let previousHumidity = null;
 let switchState = false;
 let buttonTimer = null;
 let humidityTimer = null;
-let workingTimer = null;
 let tempHumidity = null;
   
 // Function to check if humidity is high
 function isHumidityHigh(humidity) {
   tempHumidity = previousHumidity;
   previousHumidity = humidity;
-  console.log("High - Previous humidity: ", tempHumidity, " humidity: ", humidity);
+//  console.log("High - Previous humidity: ", tempHumidity, " humidity: ", humidity);
   return humidity > tempHumidity + HUMIDITY_THRESHOLD;
   
 }
@@ -44,13 +43,11 @@ function stopTimer(timer) {
   };
       
 function handleHighHumidity(data) {
-  //  switchState = Shelly.call("Switch.GetStatus", { id: SWITCH_ID });
   Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
     function(result, error_code, error_message, ud) {
       if (error_code === 0) { // Check if the call was successful
         switchState = result.output;
         console.log("Humidity switch state:", switchState);
-
         // You can now use `switchState` here or trigger other functions
         if (!switchState) {
           // Switch is off, turn it on
@@ -58,11 +55,10 @@ function handleHighHumidity(data) {
           Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }); // Turn the switch on
           switchState = true;
           // Set a timeout to turn the switch off after 25 minutes
-          startTimer(humidityTimer, HUMIDITY_TIMEOUT);
+          startTimer(humidityTimer, HUMIDITY_TIMEOUT);       
       } else {
           // Do something else if the switch is off
         }
-
       } else {
         console.log("Error getting switch status:", error_message);
       }
@@ -70,7 +66,7 @@ function handleHighHumidity(data) {
     null
   );
   //  switchState = Shelly.getComponentStatus("switch:0").output;
-  console.log('Handle switch state: ', JSON.stringify(switchState));
+//  console.log('Handle switch state: ', JSON.stringify(switchState));
 }
 function handleLowHumidity(data) {
   Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
@@ -111,7 +107,6 @@ let CONFIG = {
         },
       },
       action: function (data) {
-//        let switchState2 = null;
         console.log("The button was pressed");
         Shelly.call("Switch.Toggle", { id: SWITCH_ID });
         Shelly.call("Switch.GetStatus", { id: SWITCH_ID },
@@ -133,13 +128,7 @@ let CONFIG = {
           }, 
           null
         );
-//        function getOutput() {switchState2 = Shelly.call("Switch.GetStatus", {id: 0});};
-//        data = Timer.set(500, false, getOutput);
-//        Timer.clear(data);
-//        switchState = Shelly.getComponentStatus("switch:0").output;
-//        startTimer(workingTimer, 1);
-//        stopTimer(workingTimer);
-        console.log("CONFIG switchState: ", JSON.stringify(switchState));
+//        console.log("CONFIG switchState: ", JSON.stringify(switchState));
     // Set a timeout to turn the switch off after 5 minutes
       },
     },
@@ -157,11 +146,11 @@ let CONFIG = {
       action: function (data, info) {
         console.log("Humidity is high.");
         handleHighHumidity(data);
-        infStruct = Shelly.getDeviceInfo();
-        MQTT.publish(
-          "mymqttbroker/shelly/humidity",
-          "Humidity at " + data.address + " / " + infStruct.name + " is high."
-        );
+//        infStruct = Shelly.getDeviceInfo();
+//        MQTT.publish(
+//        "mymqttbroker/shelly/humidity",
+//          "Humidity at " + data.address + " / " + infStruct.name + " is high."
+//        );
       },
     },
     /** SCENE END 1 **/
@@ -178,11 +167,11 @@ let CONFIG = {
       action: function (data, info) {
         console.log("Humidity is low.");
         handleLowHumidity(data);
-        info = Shelly.getDeviceInfo();
-        MQTT.publish(
-          "mymqttbroker/shelly/humidity",
-          "Humidity at " + data.address + " / " + info.name + " is low."
-        );
+//        info = Shelly.getDeviceInfo();
+//        MQTT.publish(
+//          "mymqttbroker/shelly/humidity",
+//          "Humidity at " + data.address + " / " + info.name + " is low."
+//        );
       },
     },
     /** SCENE END 2 **/
