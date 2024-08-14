@@ -74,6 +74,7 @@ function handleLowHumidity(data) {
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }); // Assuming Shelly.call is available
     console.log('Switch turned OFF');
     switchState = false;
+    stopTimer(humidityTimer);
   }
 }
 let CONFIG = {
@@ -97,13 +98,13 @@ let CONFIG = {
           function(result, error_code, error_message, ud) {
             if (error_code === 0) { // Check if the call was successful
               switchState = result.output;
-              console.log("Switch state:", switchState);
+              console.log("Button switch state:", switchState);
       
               // You can now use `switchState` here or trigger other functions
               if (switchState) {
                 startTimer(buttonTimer, BUTTON_TIMEOUT);
               } else {
-                // Do something else if the switch is off
+                stopTimer(buttonTimer);
               }
     
             } else {
