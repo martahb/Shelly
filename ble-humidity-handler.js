@@ -85,8 +85,8 @@ function handleLowHumidity(data) {
     previousHumidity = humidity;
     switchState = false;
     setSwitchState(switchState);
-    startTimer(TIMER,BUTTON_TIMEOUT);
-}
+    stopTimer(TIMER);
+ }
 
 function handleButtonPress() {
     Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
@@ -94,6 +94,7 @@ function handleButtonPress() {
             switchState = !result.output;
             if (switchState) {
                 console.log('Switch turned ON by button press');
+                stopTimer(TIMER);
                 startTimer(TIMER,HUMIDITY_TIMEOUT);
             } else {
                 console.log('Switch turned OFF by button press');
