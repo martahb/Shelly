@@ -9,10 +9,7 @@ const DEBUG = false;
 
 let previousHumidity = null;
 let switchState = false;
-let humidityTimer = null;
-let lowHumidity = 50;
 let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
-let timerObj = null;
 
 
 function calculateAverageHumidity() {
@@ -75,7 +72,6 @@ function handleShellyBluEvent(eventData) {
             for (let i = 1; i <= MAX_HUMIDITY_SAMPLES; i++) {
                 humiditySamples[i - 1] = data.humidity;
             }
-            console.log("array initiation: ", JSON.stringify(humiditySamples), "   ", JSON.stringify(humiditySamples.length));
         }
         // Calculate average humidity
         const averageHumidity = calculateAverageHumidity();
@@ -84,7 +80,7 @@ function handleShellyBluEvent(eventData) {
         if (humidity <= averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 200)) {
             // Create a new array with one more element
             const newHumiditySamples = new Array(humiditySamples.length + 1);
-
+            console.log("array update: ", JSON.stringify(humiditySamples), "   ", JSON.stringify(humiditySamples.length));
             // Copy existing elements
             for (let i = 1; i <= humiditySamples.length; i++) {
                 newHumiditySamples[i - 1] = humiditySamples[i - 1];
@@ -107,7 +103,6 @@ function handleShellyBluEvent(eventData) {
                     switchState = false;
                     setSwitchState(switchState);
                     stopTimer();
-                    //            humidityTimer = null;
                 }
             }
             if (button) {
