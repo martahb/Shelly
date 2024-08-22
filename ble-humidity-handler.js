@@ -32,7 +32,7 @@ function setSwitchState(state) {
 function startTimer(timeout) {
     logger(["startTimer", TIMER], "Info");
     Timer.clear(TIMER);
-    timer = Timer.set(timeout * 60 * 1000,
+    timer = Timer.set(timeout * 1000, // 60 *
         false,
         function () {
             switchState = false;
@@ -74,10 +74,11 @@ function handleShellyBluEvent(eventData) {
         const button = data.button;
         if (typeof humiditySamples[0] === "undefined") {
             for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-                console.log("array initiation i: ",i);    
-                humiditySamples[i - 1] = data.humidity;
+                console.log("array initiation i: ", i);
+                console.log("humidity: ", data.humidity);
+                humiditySamples[i - 1] = data.humidity + i;
             }
-            console.log("array initiation: ",humiditySamples);
+            console.log("array initiation: ", JSON.stringify(humiditySamples), "   ", JSON.stringify(humiditySamples.length));
         }
         // Calculate average humidity
         const averageHumidity = calculateAverageHumidity();
@@ -89,55 +90,84 @@ function handleShellyBluEvent(eventData) {
 
             // Copy existing elements
             for (let i = 0; i < humiditySamples.length; i++) {
-                console.log("copy ex: ",i);
-                newHumiditySamples[i] = humiditySamples[i];
+                console.log("copy ex: ", newHumiditySamples[i - 1], "   ", humiditySamples[i - 1]);
+                newHumiditySamples[i - 1] = humiditySamples[i - 1];
             }
-            console.log("copy ex newHumiditySamples: ",newHumiditySamples," i humiditySamples: ",humiditySamples);
+            console.log("copy ex newHumiditySamples: ", newHumiditySamples, " i humiditySamples: ", humiditySamples);
+            //            console.log("copy ex newHumiditySamples: ",JSON.stringify(newHumiditySamples.length)," i humiditySamples: ",JSON.stringify(humiditySamples.length));
+            //            console.log("copy ex newHumiditySamples: ",newHumiditySamples[0]," i humiditySamples: ",humiditySamples[0]);
+            //            console.log("copy ex newHumiditySamples: ",newHumiditySamples[1]," i humiditySamples: ",humiditySamples[1]);
             // Add the new element
-            newHumiditySamples[humiditySamples.length] = humidity;
+            cleanupData(humiditySamples);
+            //            newHumiditySamples[humiditySamples.length] = humidity;
 
             // Check if the maximum length is reached
-            if (newHumiditySamples.length > MAX_HUMIDITY_SAMPLES) {
-                // Create a new array with one less element
-                const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
+            //            if (newHumiditySamples.length > MAX_HUMIDITY_SAMPLES) {
+            // Create a new array with one less element
+            //                const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
 
-                // Copy elements from the second element onwards
-                for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-                    trimmedHumiditySamples[i - 1] = newHumiditySamples[i];
-                }
+            // Copy elements from the second element onwards
+            //                for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+            //                    if (typeof trimmedHumiditySamples[i] === "undefined") { null; } else {
+            //trimmedHumiditySamples[i] = newHumiditySamples[i];
+            //                }}
 
-                humiditySamples = trimmedHumiditySamples;
-                console.log("uhs Humidity Samples 1:", humiditySamples);
-            } else {
-                humiditySamples = newHumiditySamples;
-                console.log("uhs Humidity Samples else:", humiditySamples);
-            }
-        }
+            //                humiditySamples = trimmedHumiditySamples;
+            //                console.log("uhs Humidity Samples 1:", humiditySamples);
+            //            } else {
+            //                humiditySamples = newHumiditySamples;
+            console.log("uhs Humidity Samples else:", humiditySamples);
+            //            }
+            //        }
 
-        // Check if humidity is 10% above average
-        if (humidity > averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 100)) {
-            // Turn on fan
-            switchState = true;
-            setSwitchState(switchState);
-            console.log("Started humidity switch");
-            startTimer(HUMIDITY_TIMEOUT);
-        } else if (humidity <= averageHumidity + 1) {
-            console.log("Turned off switch - low humidity");
-            if (switchState) {
-                switchState = false;
+            // Check if humidity is 10% above average
+            if (humidity > averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 100)) {
+                // Turn on fan
+                switchState = true;
                 setSwitchState(switchState);
-                stopTimer();
-                //            humidityTimer = null;
+                console.log("Started humidity switch");
+                startTimer(HUMIDITY_TIMEOUT);
+            } else if (humidity <= averageHumidity + 1) {
+                console.log("Turned off switch - low humidity");
+                if (switchState) {
+                    switchState = false;
+                    setSwitchState(switchState);
+                    stopTimer();
+                    //            humidityTimer = null;
+                }
+            }
+            if (button) {
+                // Handle button input
+                handleButtonPress();
+            }
+            console.log("Shelly BLU device found", JSON.stringify(data));
+            MQTT.publish("home/mbathroom/vent", JSON.stringify(data));
+        } else {
+            return null;
+        }
+    }
+}
+function cleanupData(dirtySamples) {
+
+    for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+        if (typeof dirtySamples[i] === "undefined" || dirtySamples[i] === "-1") {
+            for (let j = i; j < MAX_HUMIDITY_SAMPLES - 1; j++)
+                dirtySamples[j] = dirtySamples[j + 1]
+        }
+        if (dirtySamples.length > MAX_HUMIDITY_SAMPLES) {
+            // Create a new array with one less element
+            const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
+
+            // Copy elements from the second element onwards
+            for (let i = 2; i < MAX_HUMIDITY_SAMPLES; i++) {
+                trimmedHumiditySamples[i - 1] = dirtySamples[i];
             }
         }
-        if (button) {
-            // Handle button input
-            handleButtonPress();
-        }
-        console.log("Shelly BLU device found", JSON.stringify(data));
-        MQTT.publish("home/mbathroom/vent", JSON.stringify(data));
-    } else {
-        return null;
+
+        dirtySamples = trimmedHumiditySamples;
+        console.log("uhs Humidity Samples 1:", humiditySamples);
+        //    humiditySamples = newHumiditySamples;
+        console.log("uhs Humidity Samples else:", dirtySamples);
     }
 }
 
