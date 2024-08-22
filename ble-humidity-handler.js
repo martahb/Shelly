@@ -5,100 +5,58 @@ const HUMIDITY_TIMEOUT = 15;
 const BUTTON_TIMEOUT = 5;
 const MAX_HUMIDITY_SAMPLES = 9;
 const TIMER = 1;
+const DEBUG = false;
 
 let previousHumidity = null;
 let switchState = false;
-let buttonTimer = null;
 let humidityTimer = null;
 let lowHumidity = 50;
-//let humiditySamples = Array(MAX_HUMIDITY_SAMPLES).fill(0);
-//let timerObj = null;
-//let buttonTimer = null;
+let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
+let timerObj = null;
 
 
-//function calculateAverageHumidity() {
-//    return humiditySamples.reduce((sum, current) => sum + current, 0) / humiditySamples.length;
-//}
-
-function isHumidityHigh(humidity) {
-//    return humidity > calculateAverageHumidity() + HUMIDITY_THRESHOLD;
-    return humidity > previousHumidity + HUMIDITY_THRESHOLD;
+function calculateAverageHumidity() {
+    logger(["cah Humidity Samples:", humiditySamples], "Info");
+    let sum = 0;
+    for (let i = 0; i < humiditySamples.length; i++) {
+        sum += humiditySamples[i];
+        console.log(humiditySamples[i]);
+    }
+    return sum / humiditySamples.length;
 }
-
-function isHumidityLow(humidity) {
-    return humidity <= previousHumidity + 1;
-}
-
-//function updateHumiditySamples(humidity) {
-//    humiditySamples.push(humidity);
-//    if (humiditySamples.length > MAX_HUMIDITY_SAMPLES) {
-//        humiditySamples.shift();
-//    }
-//}
 
 function setSwitchState(state) {
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: state });
 }
 
-function startTimer(timerObj, timeout) {
-    console.log('startTimer: ', timerObj);
-    Timer.clear(timerObj);
-    timerObj = Timer.set(timeout * 60 * 1000, false, function () {
-    switchState = false;
-    setSwitchState(switchState);
-      console.log('Switch turned OFF (timer): ', timerObj);
-    }, null);
-  }
+function startTimer(timeout) {
+    logger(["startTimer", TIMER], "Info");
+    Timer.clear(TIMER);
+    timer = Timer.set(timeout * 60 * 1000,
+        false,
+        function () {
+            switchState = false;
+            setSwitchState(switchState);
+            logger(["Switch turned OFF (timer):", TIMER], "Info");
+        },
+        null);
+};
 
-  function stopTimer(timerObj) {
-    console.log('stopTimer: ', timerObj);
-    Timer.clear(timerObj);
-  }
-
-function handleHumidity(data) {
-    const humidity = data.humidity;
-    Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
-        if (error_code === 0) {
-            switchState = result.output;
-            if (switchState) {
-                startTimer(TIMER,HUMIDITY_TIMEOUT);
-            } else {
-                stopTimer(TIMER);
-            }
-        } else {
-            console.log("Error getting switch status:", error_message);
-        }
-    });
+function stopTimer() {
+    Timer.clear(TIMER);
+    logger(["Timer stopped", TIMER], "Info");
 }
-
-function handleHighHumidity() {
-    console.log('Turning switch ON due to high humidity');
-    switchState = true;
-    setSwitchState(switchState);
-    stopTimer(TIMER);
-    startTimer(TIMER,HUMIDITY_TIMEOUT);
-}
-
-function handleLowHumidity(data) {
-    console.log('Turning switch OFF due to low humidity');
-//    updateHumiditySamples(data.humidity);
-    previousHumidity = humidity;
-    switchState = false;
-    setSwitchState(switchState);
-    stopTimer(TIMER);
- }
 
 function handleButtonPress() {
     Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
         if (error_code === 0) {
             switchState = !result.output;
             if (switchState) {
-                console.log('Switch turned ON by button press');
-                stopTimer(TIMER);
-                startTimer(TIMER,HUMIDITY_TIMEOUT);
+                console.log("Switch turned ON by button press");
+                startTimer(BUTTON_TIMEOUT);
             } else {
-                console.log('Switch turned OFF by button press');
-                stopTimer(TIMER);
+                console.log("Switch turned OFF by button press");
+                stopTimer();
             }
             setSwitchState(switchState);
         } else {
@@ -107,248 +65,140 @@ function handleButtonPress() {
     });
 }
 
-let CONFIG = {
-    scenes: [
-        {
-            conditions: { event: "shelly-blu", address: BLU_MAC, button: { compare: ">", value: 0 } },
-            action: handleButtonPress
-        },
-        {
-            conditions: { event: "shelly-blu", address: BLU_MAC, humidity: isHumidityLow },
-            action: handleLowHumidity
-        },
-        {
-            conditions: { event: "shelly-blu", address: BLU_MAC, humidity: isHumidityHigh },
-            action: handleHighHumidity
-        },
-        {
-            conditions: { event: "shelly-blu", address: BLU_MAC },
-            action: function (data) {
-                console.log("Shelly BLU device found", JSON.stringify(data));
-                MQTT.publish("home/mbathroom/vent", JSON.stringify(data));
+function handleShellyBluEvent(eventData) {
+    logger(["event received: ", JSON.stringify(eventData)], "Info");
+    if (eventData.info.event === "shelly-blu") {
+        const data = eventData.info.data;
+        const humidity = data.humidity;
+        const address = data.address;
+        const button = data.button;
+        if (typeof humiditySamples[0] === "undefined") {
+            for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+                console.log("array initiation i: ",i);    
+                humiditySamples[i - 1] = data.humidity;
+            }
+            console.log("array initiation: ",humiditySamples);
+        }
+        // Calculate average humidity
+        const averageHumidity = calculateAverageHumidity();
+
+        // Update humidity samples
+        if (humidity <= averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 200)) {
+            // Create a new array with one more element
+            const newHumiditySamples = new Array(humiditySamples.length + 1);
+
+            // Copy existing elements
+            for (let i = 0; i < humiditySamples.length; i++) {
+                console.log("copy ex: ",i);
+                newHumiditySamples[i] = humiditySamples[i];
+            }
+            console.log("copy ex newHumiditySamples: ",newHumiditySamples," i humiditySamples: ",humiditySamples);
+            // Add the new element
+            newHumiditySamples[humiditySamples.length] = humidity;
+
+            // Check if the maximum length is reached
+            if (newHumiditySamples.length > MAX_HUMIDITY_SAMPLES) {
+                // Create a new array with one less element
+                const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
+
+                // Copy elements from the second element onwards
+                for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+                    trimmedHumiditySamples[i - 1] = newHumiditySamples[i];
+                }
+
+                humiditySamples = trimmedHumiditySamples;
+                console.log("uhs Humidity Samples 1:", humiditySamples);
+            } else {
+                humiditySamples = newHumiditySamples;
+                console.log("uhs Humidity Samples else:", humiditySamples);
             }
         }
-    ],
-    debug: false,
-};
 
+        // Check if humidity is 10% above average
+        if (humidity > averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 100)) {
+            // Turn on fan
+            switchState = true;
+            setSwitchState(switchState);
+            console.log("Started humidity switch");
+            startTimer(HUMIDITY_TIMEOUT);
+        } else if (humidity <= averageHumidity + 1) {
+            console.log("Turned off switch - low humidity");
+            if (switchState) {
+                switchState = false;
+                setSwitchState(switchState);
+                stopTimer();
+                //            humidityTimer = null;
+            }
+        }
+        if (button) {
+            // Handle button input
+            handleButtonPress();
+        }
+        console.log("Shelly BLU device found", JSON.stringify(data));
+        MQTT.publish("home/mbathroom/vent", JSON.stringify(data));
+    } else {
+        return null;
+    }
+}
 
 // Logs the provided message with an optional prefix to the console
 function logger(message, prefix) {
-    if (!CONFIG.debug) {
-      return;
-    }
-  
-    let finalText = "";
-  
-    if (Array.isArray(message)) {
-      for (let i = 0; i < message.length; i++) {
-        finalText += " " + JSON.stringify(message[i]);
-      }
-    } else {
-      finalText = JSON.stringify(message);
-    }
-  
-    if (typeof prefix !== "string") {
-      prefix = "";
-    } else {
-      prefix += ":";
-    }
-  
-    console.log(prefix, finalText);
-  }
-  // Scene Manager object
-  let SceneManager = {
-    scenes: [],
-  
-    setScenes: function (scenes) {
-      this.scenes = scenes;
-    },
-    
-    onNewData: function (data) {
-      try {
-          logger(["New data received", JSON.stringify(data)], "Info");
-  
-          for (let sceneIndex = 0; sceneIndex < this.scenes.length; sceneIndex++) {
-              logger(["Validating conditions for scene with index=", sceneIndex], "Info");
-  
-              if (this.validateConditionsForScene(sceneIndex, data)) {
-                  logger(["Conditions are valid for scene with index=", sceneIndex], "Info");
-                  this.executeScene(sceneIndex, data);
-              } else {
-                  logger(["Conditions are invalid for scene with index=", sceneIndex], "Info");
-              }
-          }
-      } catch (error) {
-          console.log("Error in onNewData:", error.message);
-          logger(["Error processing new data. Error:", error.message], "Error");
-      }
-    },
-  
-    eventHandler: function (eventData, sceneEventObject) {
-      let info = eventData.info;
-      if (typeof info !== "object") {
-        console.log("ERROR: ");
-        logger("Can't find the info object", "Error");
-  
+    //exit if the debug isn't enabled
+    if (!DEBUG) {
         return;
-      }
-  
-      if (typeof info.data === "object") {
-        for (let key in info.data) {
-          info[key] = info.data[key];
-        }
-  
-        info.data = undefined;
-      }
-  
-      sceneEventObject.onNewData(info);
-    },
-  
-    checkCondition: function (compFunc, currValue, compValue) {
-      if (
-        typeof currValue === "undefined" ||
-        typeof compValue === "undefined" ||
-        typeof compFunc === "undefined"
-      ) {
-        return false;
-      }
-  
-      if (typeof compFunc === "string") {
-        if(compFunc in this.compFuncList) {
-          compFunc = this.compFuncList[compFunc];
-        }
-        else {
-          logger(["Unknown compare function", compFunc], "Error");
-        }
-      }
-  
-      if (typeof compFunc === "function") {
-        return compFunc(currValue, compValue);
-      }
-  
-      return false;
-    },
-  
-    validateConditionsForScene: function (sceneIndex, receivedData) {
-      if (
-        typeof sceneIndex !== "number" ||
-        sceneIndex < 0 ||
-        sceneIndex >= this.scenes.length
-      ) {
-        return false;
-      }
-  
-      let conditions = this.scenes[sceneIndex].conditions;
-      if (typeof conditions === "undefined") {
-        return false;
-      }
-  
-      for (let condKey in conditions) {
-        let condData = conditions[condKey];
-        let currValue = receivedData[condKey];
-        let compValue = condData;
-        let compFunc = condData;
-  
-        if (typeof condData === "object") {
-          compValue = condData.value;
-          compFunc = condData.compare;
-        } else if (typeof condData !== "function") {
-          compFunc = "==";
-        }
-  
-        if (!this.checkCondition(compFunc, currValue, compValue)) {
-          logger(
-            ["Checking failed for", condKey, "in scene with index=", sceneIndex],
-            "Info"
-          );
-          return false;
-        }
-      }
-  
-      return true;
-    },
-  
-  executeScene: function (sceneIndex, data) {
-      try {
-          if (
-              typeof sceneIndex !== "number" ||
-              sceneIndex < 0 ||
-              sceneIndex >= this.scenes.length
-          ) {
-              throw new Error("Invalid scene index: " + sceneIndex);
-          }
-  
-          let func = this.scenes[sceneIndex].action;
-          if (typeof func !== "function") {
-              throw new Error("Action for scene at index " + sceneIndex + " is not a function");
-          }
-  
-          logger(["Executing action for scene with index=", sceneIndex], "Info");
-          func(data);
-  
-      } catch (error) {
-          console.log("Error in executeScene:", error.message);
-          logger(["Error executing scene with index=", sceneIndex, "Error:", error.message], "Error");
-      }
-  },
-  
-    compFuncList: {
-      "==": function (currValue, compValue) {
-        if (typeof currValue !== typeof compValue) {
-          return false;
-        }
-        return currValue === compValue;
-      },
-      "~=": function (currValue, compValue) {
-        if (typeof currValue !== "number" || typeof compValue !== "number") {
-          return false;
-        }
-        return Math.round(currValue) === Math.round(compValue);
-      },
-      ">": function (currValue, compValue) {
-        if (typeof currValue !== "number" || typeof compValue !== "number") {
-          return false;
-        }
-        return currValue > compValue;
-      },
-      "<": function (currValue, compValue) {
-        if (typeof currValue !== "number" || typeof compValue !== "number") {
-          return false;
-        }
-        return currValue < compValue;
-      },
-      "!=": function (currValue, compValue) {
-        return !this.compFuncList["=="](currValue, compValue);
-      },
-      "in": function (currValue, compValue) {
-        if (
-          typeof currValue !== "undefined" &&
-          typeof compValue !== "undefined" &&
-          !Array.isArray(compValue)
-        ) {
-          return false;
-        }
-        return currValue in compValue;
-      },
-      "notin": function (currValue, compValue) {
-        return !this.compFuncList["in"](currValue, compValue);
-      },
-    },
-  };
-  // Initialize function for the scene manager and register the event handler
-  function init(tempHumidity) {
-    SceneManager.setScenes(CONFIG.scenes);
-    Shelly.addEventHandler(SceneManager.eventHandler, SceneManager);
-  
-    if (typeof tempHumidity !== "undefined") {
-      previousHumidity = tempHumidity;
     }
-    switchState = Shelly.call("Switch.GetStatus", {id: 0});
-    console.log("previousHumidity: ", JSON.stringify(previousHumidity));
-    console.log("tempHumidity: ", JSON.stringify(tempHumidity));
-    logger("Scene Manager successfully started", "Info");
-  }
-  
-  // Initialize with a defined humidity value
-  init();
+
+    let finalText = "";
+
+    //if the message is list loop over it
+    if (Array.isArray(message)) {
+        for (let i = 0; i < message.length; i++) {
+            finalText = finalText + " " + JSON.stringify(message[i]);
+        }
+    } else {
+        finalText = JSON.stringify(message);
+    }
+
+    //the prefix must be string
+    if (typeof prefix !== "string") {
+        prefix = "";
+    } else {
+        prefix = prefix + ":";
+    }
+
+    //log the result
+    console.log(prefix, finalText);
+}
+
+// Example event data
+const event = {
+    component: "script:1",
+    name: "script",
+    id: 1,
+    now: 1724280608.34067416191,
+    info: {
+        component: "script:1",
+        id: 1,
+        event: "shelly-blu",
+        data: {
+            encryption: false,
+            BTHome_version: 2,
+            pid: 169,
+            battery: 100,
+            humidity: 50,
+            button: 1,
+            temperature: 31.5,
+            rssi: -81,
+            address: "38:39:8f:70:b2:4e",
+        },
+        ts: 1724275658.53,
+    }
+};
+
+function init() {
+    // Register event listener for "shelly-blu" events
+    Shelly.addEventHandler(handleShellyBluEvent);
+    handleButtonPress();
+}
+
+init();
