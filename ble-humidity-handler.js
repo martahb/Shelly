@@ -18,9 +18,8 @@ let timerObj = null;
 function calculateAverageHumidity() {
     logger(["cah Humidity Samples:", humiditySamples], "Info");
     let sum = 0;
-    for (let i = 0; i < humiditySamples.length; i++) {
+    for (let i = 1; i <= humiditySamples.length; i++) {
         sum += humiditySamples[i];
-        console.log(humiditySamples[i]);
     }
     return sum / humiditySamples.length;
 }
@@ -32,7 +31,7 @@ function setSwitchState(state) {
 function startTimer(timeout) {
     logger(["startTimer", TIMER], "Info");
     Timer.clear(TIMER);
-    timer = Timer.set(timeout * 1000, // 60 *
+    timer = Timer.set(timeout * 60 * 1000, 
         false,
         function () {
             switchState = false;
@@ -73,10 +72,8 @@ function handleShellyBluEvent(eventData) {
         const address = data.address;
         const button = data.button;
         if (typeof humiditySamples[0] === "undefined") {
-            for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-                console.log("array initiation i: ", i);
-                console.log("humidity: ", data.humidity);
-                humiditySamples[i - 1] = data.humidity + i;
+            for (let i = 1; i <= MAX_HUMIDITY_SAMPLES; i++) {
+                humiditySamples[i - 1] = data.humidity;
             }
             console.log("array initiation: ", JSON.stringify(humiditySamples), "   ", JSON.stringify(humiditySamples.length));
         }
@@ -89,36 +86,13 @@ function handleShellyBluEvent(eventData) {
             const newHumiditySamples = new Array(humiditySamples.length + 1);
 
             // Copy existing elements
-            for (let i = 0; i < humiditySamples.length; i++) {
-                console.log("copy ex: ", newHumiditySamples[i - 1], "   ", humiditySamples[i - 1]);
+            for (let i = 1; i <= humiditySamples.length; i++) {
                 newHumiditySamples[i - 1] = humiditySamples[i - 1];
             }
             console.log("copy ex newHumiditySamples: ", newHumiditySamples, " i humiditySamples: ", humiditySamples);
-            //            console.log("copy ex newHumiditySamples: ",JSON.stringify(newHumiditySamples.length)," i humiditySamples: ",JSON.stringify(humiditySamples.length));
-            //            console.log("copy ex newHumiditySamples: ",newHumiditySamples[0]," i humiditySamples: ",humiditySamples[0]);
-            //            console.log("copy ex newHumiditySamples: ",newHumiditySamples[1]," i humiditySamples: ",humiditySamples[1]);
             // Add the new element
-            cleanupData(humiditySamples);
-            //            newHumiditySamples[humiditySamples.length] = humidity;
-
-            // Check if the maximum length is reached
-            //            if (newHumiditySamples.length > MAX_HUMIDITY_SAMPLES) {
-            // Create a new array with one less element
-            //                const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
-
-            // Copy elements from the second element onwards
-            //                for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-            //                    if (typeof trimmedHumiditySamples[i] === "undefined") { null; } else {
-            //trimmedHumiditySamples[i] = newHumiditySamples[i];
-            //                }}
-
-            //                humiditySamples = trimmedHumiditySamples;
-            //                console.log("uhs Humidity Samples 1:", humiditySamples);
-            //            } else {
-            //                humiditySamples = newHumiditySamples;
+            cleanupData();
             console.log("uhs Humidity Samples else:", humiditySamples);
-            //            }
-            //        }
 
             // Check if humidity is 10% above average
             if (humidity > averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 100)) {
@@ -147,29 +121,27 @@ function handleShellyBluEvent(eventData) {
         }
     }
 }
-function cleanupData(dirtySamples) {
+function cleanupData() {
 
-    for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-        if (typeof dirtySamples[i] === "undefined" || dirtySamples[i] === "-1") {
-            for (let j = i; j < MAX_HUMIDITY_SAMPLES - 1; j++)
-                dirtySamples[j] = dirtySamples[j + 1]
+
+    for (let i = 0; i < MAX_HUMIDITY_SAMPLES + 2; i++) {
+        if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === "-1"|| humiditySamples[i] < 10 || humiditySamples[i] > 100) {
+            humiditySamples[i] = humiditySamples[i + 1];
+            humiditySamples[i + 1] = undefined;
         }
-        if (dirtySamples.length > MAX_HUMIDITY_SAMPLES) {
-            // Create a new array with one less element
-            const trimmedHumiditySamples = new Array(MAX_HUMIDITY_SAMPLES);
+    }
+    
+    // Check array length after shifting
+    if (humiditySamples.length > MAX_HUMIDITY_SAMPLES) {
+        humiditySamples.length = MAX_HUMIDITY_SAMPLES;
+    }
 
-            // Copy elements from the second element onwards
-            for (let i = 2; i < MAX_HUMIDITY_SAMPLES; i++) {
-                trimmedHumiditySamples[i - 1] = dirtySamples[i];
-            }
-        }
-
-        dirtySamples = trimmedHumiditySamples;
+//        humiditySamples = trimmedHumiditySamples;
         console.log("uhs Humidity Samples 1:", humiditySamples);
         //    humiditySamples = newHumiditySamples;
-        console.log("uhs Humidity Samples else:", dirtySamples);
+        console.log("uhs Humidity Samples else:", humiditySamples);
     }
-}
+
 
 // Logs the provided message with an optional prefix to the console
 function logger(message, prefix) {
