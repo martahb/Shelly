@@ -5,7 +5,8 @@ const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
 const HUMIDITY_TIMEOUT = 15;
 const BUTTON_TIMEOUT = 5;
 const MAX_HUMIDITY_SAMPLES = 10;
-const TIMER = 1;
+const TIMER_ON = 1;
+const TIMER_OFF = 0;
 const DEBUG = false;
 
 let previousHumidity = null;
@@ -31,7 +32,7 @@ function setSwitchState(state) {
     Shelly.call("Switch.Set", { id: SWITCH_ID, on: state });
 }
 
-function startTimer(timeout) {
+function startTimer(timeout,TIMER) {
     logger(["startTimer", TIMER], "Info");
     Timer.clear(TIMER);
     timer = Timer.set(timeout * 60 * 1000, // * 60
@@ -45,7 +46,7 @@ function startTimer(timeout) {
         Timer.clear(TIMER);
 };
 
-function stopTimer() {
+function stopTimer(TIMER) {
     Timer.clear(TIMER);
     logger(["Timer stopped", TIMER], "Info");
 }
@@ -56,10 +57,12 @@ function handleButtonPress() {
             switchState = !result.output;
             if (switchState) {
                 console.log("Switch turned ON by button press");
-                startTimer(BUTTON_TIMEOUT);
+                stopTimer(TIMER_ON);
+                startTimer(BUTTON_TIMEOUT,TIMER_ON);
             } else {
                 console.log("Switch turned OFF by button press");
-                stopTimer();
+                stopTimer(TIMER_OFF);
+                stopTimer(TIMER_ON);
             }
             setSwitchState(switchState);
         } else {
@@ -79,27 +82,27 @@ function handleShellyBluEvent(eventData) {
 //    const address = data.address;
     const button = data.button;
 
-    if (typeof humiditySamples[0] === "undefined") {
+    if (humiditySamples.length === 0) {
         for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-            humiditySamples[i] = data.humidity;
+            humiditySamples[i] = 40; // data.humidity;
         }
     }
     // Calculate average humidity
     const averageHumidity = calculateAverageHumidity();
 
     // Update humidity samples
-    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD/2) && humidity >= averageHumidity - (HUMIDITY_THRESHOLD/2)) { // !mod % 10 && 
+    // if (true) { // humidity <= averageHumidity + (HUMIDITY_THRESHOLD/2) && humidity >= averageHumidity - (HUMIDITY_THRESHOLD/2)) { // !mod % 10 && 
         // mod++;
         // console.log("!mod % 10: ",!mod % 10);
         for (let i = 0; i < humiditySamples.length - 1; i++) {
             humiditySamples[i] = humiditySamples[i + 1];
         }
-        humiditySamples[humiditySamples.length - 1] = humidity;
+        humiditySamples[humiditySamples.length - 1] = ( humidity + ((MAX_HUMIDITY_SAMPLES - 1 ) * averageHumidity ) / MAX_HUMIDITY_SAMPLES);
     
         //humiditySamples.length--; // Equivalent to items.shift()
 //        humiditySamples.length = MAX_HUMIDITY_SAMPLES;
         logger(["array update: ", humiditySamples, "   ", JSON.stringify(humiditySamples.length)], "Info");
-    }
+  //  }
     cleanupData();
     logger(["cleaned Humidity Samples:", humiditySamples,"   ", JSON.stringify(humiditySamples.length)], "Info");
 
@@ -109,15 +112,16 @@ function handleShellyBluEvent(eventData) {
         switchState = true;
         setSwitchState(switchState);
         console.log("Started humidity switch");
-        startTimer(HUMIDITY_TIMEOUT);
+        stopTimer(TIMER_ON);
+        startTimer(HUMIDITY_TIMEOUT,TIMER_ON);
     }
      else if (humidity <= averageHumidity + 1) {
         console.log("Turned off switch - low humidity");
         if (switchState) {
             // switchState = false;
             // setSwitchState(switchState);
-            stopTimer();
-            startTimer(BUTTON_TIMEOUT);
+            stopTimer(TIMER_OFF);
+            startTimer(BUTTON_TIMEOUT,TIMER_OFF);
         }
     }
     if (button) {
@@ -136,6 +140,10 @@ function cleanupData() {
         if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === "-1" || humiditySamples[i] < 10 || humiditySamples[i] > 100) {
             humiditySamples[i] = humiditySamples[i + 1];
             humiditySamples[i + 1] = undefined;
+        } else { 
+            if (humiditySamples[i] === null) {
+                humiditySamples[i] = humiditySamples[i-1];
+            }
         }
     }
 
