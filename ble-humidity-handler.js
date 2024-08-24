@@ -6,7 +6,7 @@ const HUMIDITY_TIMEOUT = 15;
 const BUTTON_TIMEOUT = 5;
 const MAX_HUMIDITY_SAMPLES = 10;
 const TIMER = 1;
-const DEBUG = true;
+const DEBUG = false;
 
 let previousHumidity = null;
 let switchState = false;
@@ -88,7 +88,7 @@ function handleShellyBluEvent(eventData) {
     const averageHumidity = calculateAverageHumidity();
 
     // Update humidity samples
-    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD/2) && humidity >= averageHumidity - (HUMIDITY_THRESHOLD/2)) { !mod % 10 && 
+    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD/2) && humidity >= averageHumidity - (HUMIDITY_THRESHOLD/2)) { // !mod % 10 && 
         // mod++;
         // console.log("!mod % 10: ",!mod % 10);
         for (let i = 0; i < humiditySamples.length - 1; i++) {
