@@ -1,9 +1,10 @@
 const HUMIDITY_THRESHOLD = 10;
 const SWITCH_ID = 0;
-const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase();
+// const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
+const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
 const HUMIDITY_TIMEOUT = 15;
 const BUTTON_TIMEOUT = 5;
-const MAX_HUMIDITY_SAMPLES = 9;
+const MAX_HUMIDITY_SAMPLES = 10;
 const TIMER = 1;
 const DEBUG = false;
 
@@ -13,11 +14,16 @@ let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
 
 
 function calculateAverageHumidity() {
-    logger(["cah Humidity Samples:", humiditySamples], "Info");
+    cleanupData();
+//    logger(["cah Humidity length:", humiditySamples.length], "Info");
+//    logger(["cah Humidity Samples:", humiditySamples], "Info");
+//    logger(["cah Humidity 0:", humiditySamples[0]], "Info");
     let sum = 0;
-    for (let i = 1; i <= humiditySamples.length; i++) {
+//    console.log("0 sum: ", sum,"humiditySamples.length: ",humiditySamples.length,"humiditySamples: ",humiditySamples);
+    for (let i = 0; i < humiditySamples.length; i++) {
         sum += humiditySamples[i];
     }
+    console.log("sum: ", sum, "sum / humiditySamples.length: ", sum / humiditySamples.length );
     return sum / humiditySamples.length;
 }
 
@@ -28,7 +34,7 @@ function setSwitchState(state) {
 function startTimer(timeout) {
     logger(["startTimer", TIMER], "Info");
     Timer.clear(TIMER);
-    timer = Timer.set(timeout * 60 * 1000, 
+    timer = Timer.set(timeout * 60 * 1000, // * 60
         false,
         function () {
             switchState = false;
@@ -36,6 +42,7 @@ function startTimer(timeout) {
             logger(["Switch turned OFF (timer):", TIMER], "Info");
         },
         null);
+        Timer.clear(TIMER);
 };
 
 function stopTimer() {
@@ -62,80 +69,83 @@ function handleButtonPress() {
 }
 
 function handleShellyBluEvent(eventData) {
-    logger(["event received: ", JSON.stringify(eventData)], "Info");
-    if (eventData.info.event === "shelly-blu") {
-        const data = eventData.info.data;
-        const humidity = data.humidity;
-        const address = data.address;
-        const button = data.button;
-        if (typeof humiditySamples[0] === "undefined") {
-            for (let i = 1; i <= MAX_HUMIDITY_SAMPLES; i++) {
-                humiditySamples[i - 1] = data.humidity;
-            }
-        }
-        // Calculate average humidity
-        const averageHumidity = calculateAverageHumidity();
+    // logger(["event received: ", JSON.stringify(eventData)], "Info");
+    //    const TEMP = "shelly-blu";
+    if (eventData.info.event !== "shelly-blu" || eventData.info.data.address !== BLU_MAC) {
+        return null;
+    }
+    const data = eventData.info.data;
+    const humidity = data.humidity;
+//    const address = data.address;
+    const button = data.button;
 
-        // Update humidity samples
-        if (humidity <= averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 200)) {
-            // Create a new array with one more element
-            const newHumiditySamples = new Array(humiditySamples.length + 1);
-            console.log("array update: ", JSON.stringify(humiditySamples), "   ", JSON.stringify(humiditySamples.length));
-            // Copy existing elements
-            for (let i = 1; i <= humiditySamples.length; i++) {
-                newHumiditySamples[i - 1] = humiditySamples[i - 1];
-            }
-            console.log("copy ex newHumiditySamples: ", newHumiditySamples, " i humiditySamples: ", humiditySamples);
-            // Add the new element
-            cleanupData();
-            console.log("uhs Humidity Samples else:", humiditySamples);
-
-            // Check if humidity is 10% above average
-            if (humidity > averageHumidity + (averageHumidity * HUMIDITY_THRESHOLD / 100)) {
-                // Turn on fan
-                switchState = true;
-                setSwitchState(switchState);
-                console.log("Started humidity switch");
-                startTimer(HUMIDITY_TIMEOUT);
-            } else if (humidity <= averageHumidity + 1) {
-                console.log("Turned off switch - low humidity");
-                if (switchState) {
-                    switchState = false;
-                    setSwitchState(switchState);
-                    stopTimer();
-                }
-            }
-            if (button) {
-                // Handle button input
-                handleButtonPress();
-            }
-            console.log("Shelly BLU device found", JSON.stringify(data));
-            MQTT.publish("home/mbathroom/vent", JSON.stringify(data));
-        } else {
-            return null;
+    if (typeof humiditySamples[0] === "undefined") {
+        for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+            humiditySamples[i] = data.humidity;
         }
     }
+    // Calculate average humidity
+    const averageHumidity = calculateAverageHumidity();
+
+    // Update humidity samples
+    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD / 2)) {
+        humiditySamples[humiditySamples.length] = humidity;
+        for (let i = 0; i < humiditySamples.length; i++) {
+            humiditySamples[i] = humiditySamples[i + 1];
+        }
+        //humiditySamples.length--; // Equivalent to items.shift()
+//        humiditySamples.length = MAX_HUMIDITY_SAMPLES;
+        logger(["array update: ", humiditySamples, "   ", JSON.stringify(humiditySamples.length)], "Info");
+    }
+    cleanupData();
+    logger(["cleaned Humidity Samples:", humiditySamples,"   ", JSON.stringify(humiditySamples.length)], "Info");
+
+    // Check if humidity is 10% above average
+    if (humidity > averageHumidity + HUMIDITY_THRESHOLD) {
+        // Turn on fan
+        switchState = true;
+        setSwitchState(switchState);
+        console.log("Started humidity switch");
+        startTimer(HUMIDITY_TIMEOUT);
+    }
+     else if (humidity <= averageHumidity) {
+        console.log("Turned off switch - low humidity");
+        if (switchState) {
+            // switchState = false;
+            // setSwitchState(switchState);
+            stopTimer();
+            startTimer(BUTTON_TIMEOUT);
+        }
+    }
+    if (button) {
+        // Handle button input
+        handleButtonPress();
+    }
+    logger(["Shelly BLU device found", JSON.stringify(data)],"Info");
+    MQTT.publish("home/mbathroom/vent", JSON.stringify(data),0,false);
+    MQTT.publish("home/mbathroom/test", " ", "humiditySamples",0,false);
 }
+
 function cleanupData() {
 
 
-    for (let i = 0; i < MAX_HUMIDITY_SAMPLES + 2; i++) {
-        if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === "-1"|| humiditySamples[i] < 10 || humiditySamples[i] > 100) {
+    for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+        if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === "-1" || humiditySamples[i] < 10 || humiditySamples[i] > 100) {
             humiditySamples[i] = humiditySamples[i + 1];
             humiditySamples[i + 1] = undefined;
         }
     }
-    
+
     // Check array length after shifting
     if (humiditySamples.length > MAX_HUMIDITY_SAMPLES) {
         humiditySamples.length = MAX_HUMIDITY_SAMPLES;
     }
 
-//        humiditySamples = trimmedHumiditySamples;
-        console.log("uhs Humidity Samples 1:", humiditySamples);
-        //    humiditySamples = newHumiditySamples;
-        console.log("uhs Humidity Samples else:", humiditySamples);
-    }
+    //        humiditySamples = trimmedHumiditySamples;
+    logger(["uhs Humidity Samples 1:", humiditySamples," length: ",humiditySamples.length], "Info");
+    //    humiditySamples = newHumiditySamples;
+    //        console.log("uhs Humidity Samples else:", humiditySamples);
+}
 
 
 // Logs the provided message with an optional prefix to the console
@@ -186,16 +196,18 @@ const event = {
             button: 1,
             temperature: 31.5,
             rssi: -81,
-            address: "38:39:8f:70:b2:4e",
+            address: "7c:c6:b6:62:41:a7",
         },
         ts: 1724275658.53,
     }
 };
 
 function init() {
+    // MQTT.SetConfig(enable,10.20.30.10,"shelly-blu","DVES_USER",null,null,false,false,false,false);
     // Register event listener for "shelly-blu" events
+    setSwitchState(false);
     Shelly.addEventHandler(handleShellyBluEvent);
-    handleButtonPress();
+    //    handleButtonPress();
 }
 
 init();
