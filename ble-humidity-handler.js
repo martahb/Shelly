@@ -6,12 +6,12 @@ const HUMIDITY_TIMEOUT = 15;
 const BUTTON_TIMEOUT = 5;
 const MAX_HUMIDITY_SAMPLES = 10;
 const TIMER = 1;
-const DEBUG = false;
+const DEBUG = true;
 
 let previousHumidity = null;
 let switchState = false;
 let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
-
+// let mod = 1;
 
 function calculateAverageHumidity() {
     cleanupData();
@@ -88,11 +88,14 @@ function handleShellyBluEvent(eventData) {
     const averageHumidity = calculateAverageHumidity();
 
     // Update humidity samples
-    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD / 2)) {
-        humiditySamples[humiditySamples.length] = humidity;
-        for (let i = 0; i < humiditySamples.length; i++) {
+    if (humidity <= averageHumidity + (HUMIDITY_THRESHOLD/2) && humidity >= averageHumidity - (HUMIDITY_THRESHOLD/2)) { !mod % 10 && 
+        // mod++;
+        // console.log("!mod % 10: ",!mod % 10);
+        for (let i = 0; i < humiditySamples.length - 1; i++) {
             humiditySamples[i] = humiditySamples[i + 1];
         }
+        humiditySamples[humiditySamples.length - 1] = humidity;
+    
         //humiditySamples.length--; // Equivalent to items.shift()
 //        humiditySamples.length = MAX_HUMIDITY_SAMPLES;
         logger(["array update: ", humiditySamples, "   ", JSON.stringify(humiditySamples.length)], "Info");
@@ -108,7 +111,7 @@ function handleShellyBluEvent(eventData) {
         console.log("Started humidity switch");
         startTimer(HUMIDITY_TIMEOUT);
     }
-     else if (humidity <= averageHumidity) {
+     else if (humidity <= averageHumidity + 1) {
         console.log("Turned off switch - low humidity");
         if (switchState) {
             // switchState = false;
@@ -121,9 +124,9 @@ function handleShellyBluEvent(eventData) {
         // Handle button input
         handleButtonPress();
     }
-    logger(["Shelly BLU device found", JSON.stringify(data)],"Info");
-    MQTT.publish("home/mbathroom/vent", JSON.stringify(data),0,false);
-    MQTT.publish("home/mbathroom/test", " ", "humiditySamples",0,false);
+    logger(["Shelly BLU device found ", JSON.stringify(data)],"Info");
+    MQTT.publish("test", "JSON.stringify(data)",0,false);
+    MQTT.publish("array", JSON.stringify(humiditySamples),0,false);
 }
 
 function cleanupData() {
