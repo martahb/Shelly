@@ -2,8 +2,8 @@ const HUMIDITY_THRESHOLD = 10;
 const SWITCH_ID = 0;
 const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
 //const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
-const HUMIDITY_TIMEOUT = 15 * 1000; // 15 minutes in milliseconds
-const BUTTON_TIMEOUT = 5 * 1000; // 5 minutes in milliseconds
+const HUMIDITY_TIMEOUT = 15 * 1000 * 60; // 15 minutes in milliseconds
+const BUTTON_TIMEOUT = 5 * 1000 * 60; // 5 minutes in milliseconds
 const MAX_HUMIDITY_SAMPLES = 10;
 // const TIMER = 0;
 // const TIMER_ON = 1;
@@ -69,7 +69,7 @@ function handleShellyBluEvent(eventData) {
 
     if (humiditySamples.length === 0) {
         for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-            humiditySamples[i] = 40; // data.humidity;
+            humiditySamples[i] = humidity; // data.humidity;
         }
     }
     // Calculate average humidity
@@ -112,6 +112,7 @@ function handleShellyBluEvent(eventData) {
     MQTT.publish("test", "JSON.stringify(data)",0,false);
     MQTT.publish("array", JSON.stringify(humiditySamples),0,false);
     MQTT.publish("array", JSON.stringify(humiditySamples),0,false);
+    checkTimeouts();
 }
 
 function checkTimeouts() {
@@ -144,7 +145,7 @@ function checkTimeouts() {
             console.log("Error getting switch status:", error_message);
         }
     });
-    checkTimeouts();
+
 }
 
 function cleanupData() {
