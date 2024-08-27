@@ -1,7 +1,7 @@
 const HUMIDITY_THRESHOLD = 10;
 const SWITCH_ID = 0;
-const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
-//const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
+//const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
+const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
 const HUMIDITY_TIMEOUT = 15 * 1000 * 60; // 15 minutes in milliseconds
 const BUTTON_TIMEOUT = 5 * 1000 * 60; // 5 minutes in milliseconds
 const MAX_HUMIDITY_SAMPLES = 10;
@@ -17,6 +17,28 @@ let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
 let humidityTriggerTime = null;
 let buttonTriggerTime = null;
 
+function roundNumber(num) {
+    // Check if the number is negative
+    let isNegative = num < 0;
+    
+    // Take the absolute value of the number
+    num = isNegative ? -num : num;
+
+    // Get the integer part of the number
+    let integerPart = parseInt(num, 10);
+    
+    // Get the decimal part of the number
+    let decimalPart = num - integerPart;
+
+    // If the decimal part is 0.5 or greater, round up
+    if (decimalPart >= 0.5) {
+        integerPart += 1;
+    }
+
+    // Restore the sign if the number was negative
+    return isNegative ? -integerPart : integerPart;
+}
+
 function calculateAverageHumidity() {
     cleanupData();
 //    logger(["cah Humidity length:", humiditySamples.length], "Info");
@@ -28,7 +50,11 @@ function calculateAverageHumidity() {
         sum += humiditySamples[i];
     }
     console.log("sum: ", sum, "sum / humiditySamples.length: ", sum / humiditySamples.length );
-    return sum / humiditySamples.length;
+    if (humiditySamples.length > 0) {
+        return roundNumber(sum / humiditySamples.length);
+    } else {
+        return 50; // or some other default value
+    }
 }
 
 function setSwitchState(state) {
@@ -81,7 +107,9 @@ function handleShellyBluEvent(eventData) {
         for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
             humiditySamples[i - 1] = humiditySamples[i];
         }
+        if (!isNaN(averageHumidity)) {
         humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = (humidity + ((MAX_HUMIDITY_SAMPLES - 1) * averageHumidity)) / MAX_HUMIDITY_SAMPLES;
+        }
     }
 
     cleanupData();
@@ -100,14 +128,12 @@ function handleShellyBluEvent(eventData) {
         setSwitchState(switchState);
         console.log("Started humidity switch");
     }
-     else if (humidity <= averageHumidity + 1) {
+     else if (humidity <= averageHumidity && switchState) {
         console.log("Turned off switch - low humidity");
-        if (switchState) {
-            switchState = false;
-            setSwitchState(switchState);
+            setSwitchState(!switchState);
         }
     }
-}
+
     logger(["Shelly BLU device found ", JSON.stringify(data)],"Info");
     MQTT.publish("test", "JSON.stringify(data)",0,false);
     MQTT.publish("array", JSON.stringify(humiditySamples),0,false);
@@ -150,8 +176,8 @@ function checkTimeouts() {
 
 function cleanupData() {
     for (let i = 0; i < humiditySamples.length; i++) {
-        if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === -1 || humiditySamples[i] < 10 || humiditySamples[i] > 100) {
-            humiditySamples[i] = (i > 0) ? humiditySamples[i - 1] : 40;
+        if (typeof humiditySamples[i] === "undefined" || humiditySamples[i] === "-1" || humiditySamples[i] < 10 || humiditySamples[i] > 100 || typeof humiditySamples[i] !== 'number' || isNaN(humiditySamples[i])) {
+            humiditySamples[i] = (i > 0) ? humiditySamples[i - 1] : 50;
         } else if (humiditySamples[i] === null) {
             humiditySamples[i] = humiditySamples[i - 1];
         }
