@@ -1,15 +1,15 @@
 /// <reference path="../../shelly-script.d.ts" />
 const HUMIDITY_THRESHOLD = 10;
 const SWITCH_ID = 0;
-//const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
-const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
-const HUMIDITY_TIMEOUT = 15 * 1000 * 60; // 15 minutes in milliseconds
-const BUTTON_TIMEOUT = 5 * 1000 * 60; // 5 minutes in milliseconds
+const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
+//const BLU_MAC = "7c:c6:b6:62:41:a7".toLowerCase(); // white
+const HUMIDITY_TIMEOUT = 20 * 1000 * 60; // 15 minutes in milliseconds
+const BUTTON_TIMEOUT = 10 * 1000 * 60; // 5 minutes in milliseconds
 const MAX_HUMIDITY_SAMPLES = 10;
 // const TIMER = 0;
 // const TIMER_ON = 1;
 // const TIMER_OFF = 0;
-const DEBUG = true;
+const DEBUG = false;
 
 let switchState = false;
 let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
