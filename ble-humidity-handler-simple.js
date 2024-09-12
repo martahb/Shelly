@@ -9,7 +9,7 @@ const MAX_HUMIDITY_SAMPLES = 10;
 // const TIMER = 0;
 // const TIMER_ON = 1;
 // const TIMER_OFF = 0;
-const DEBUG = false;
+const DEBUG = true;
 
 let switchState = false;
 let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
@@ -149,21 +149,28 @@ function handleShellyBluEvent(eventData) {
 //            buttonTriggerTime = null;
 //            setSwitchState(!switchState);
 //        }
-        if (humidity && humidity > lastHumidity + HUMIDITY_THRESHOLD) {
-//            // Turn on fan
-            humidityTriggerTime = Date.now(); // Start humidity timer
-            switchState = true;
-            setSwitchState(switchState);
-            console.log("Started humidity switch");
+if (humidity && humidity > lastHumidity + HUMIDITY_THRESHOLD) {
+    //            // Turn on fan
+                humidityTriggerTime = Date.now(); // Start humidity timer
+                switchState = true;
+                setSwitchState(switchState);
+                console.log("Started humidity switch");
+            }
+            else if (switchState) {
+                if (humidity <= lastHumidity) {
+                    console.log("Turned off switch - low humidity");
+                    humidityTriggerTime = null;
+                    buttonTriggerTime = null;
+                    setSwitchState(!switchState); 
+                }
+                else {
+                    return null;
+                }
+            }
+            else {
+                lastHumidity = humidity;
+            }
         }
-        else if (humidity <= lastHumidity && switchState) {
-            console.log("Turned off switch - low humidity");
-            humidityTriggerTime = null;
-            buttonTriggerTime = null;
-            setSwitchState(!switchState);
-            lastHumidity = humidity;
-        }
-}
 
     logger(["Shelly BLU device found ", JSON.stringify(data)], "Info");
     MQTT.publish("test", "JSON.stringify(data)", 0, false);
