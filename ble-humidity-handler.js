@@ -1,3 +1,4 @@
+/// <reference path="../../shelly-script.d.ts" />
 const HUMIDITY_THRESHOLD = 10;
 const SWITCH_ID = 0;
 //const BLU_MAC = "38:39:8f:70:b2:4e".toLowerCase(); // black
@@ -10,7 +11,6 @@ const MAX_HUMIDITY_SAMPLES = 10;
 // const TIMER_OFF = 0;
 const DEBUG = false;
 
-let previousHumidity = null;
 let switchState = false;
 let humiditySamples = []; // Array(MAX_HUMIDITY_SAMPLES).fill(0)
 // Variables to track when the fan was triggered
@@ -96,7 +96,7 @@ function handleShellyBluEvent(eventData) {
     Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
         if (error_code === 0) {
             switchState = result.output;
-            if (switchState && !buttonTriggerTime) {
+            if (switchState && (!buttonTriggerTime || !humidityTriggerTime)) {
                 buttonTriggerTime = Date.now(); // Start button timer
             } else {
                 return;
@@ -140,8 +140,10 @@ function handleShellyBluEvent(eventData) {
             setSwitchState(switchState);
             console.log("Started humidity switch");
         }
-        else if (humidity <= averageHumidity && switchState) {
+        else if (humidity <= humiditySamples[0] && switchState) {
             console.log("Turned off switch - low humidity");
+            humidityTriggerTime = null;
+            buttonTriggerTime = 
             setSwitchState(!switchState);
         }
     }
@@ -167,10 +169,10 @@ function checkTimeouts() {
         switchState = false;
         setSwitchState(switchState);
         humidityTriggerTime = null;
-    }
-    if (BLU_MAC === "7c:c6:b6:62:41:a7") {
-        return;
-    }
+    }   Date.now();
+//    if (BLU_MAC === "7c:c6:b6:62:41:a7") {
+//        return;
+//    }
 }
 
 function cleanupData() {
@@ -251,21 +253,8 @@ function init() {
     // MQTT.SetConfig(enable,10.20.30.10,"shelly-blu","DVES_USER",null,null,false,false,false,false);
     // Register event listener for "shelly-blu" events
     //    setSwitchState(false);
-    Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
-        if (error_code === 0) {
-            console.log("result.output :", result.output)
-            switchState = result.output;
-            if (switchState && !buttonTriggerTime) {
-                buttonTriggerTime = Date.now(); // Start button timer
-            } else {
-                return;
-            }
-        } else {
-            console.log("Error getting switch status:", error_message);
-        }
-    });
+    setSwitchState(false);
     Shelly.addEventHandler(handleShellyBluEvent);
-    checkTimeouts();
     //    handleButtonPress();
     //    setInterval(checkTimeouts, 1000); // Check timeouts every second
 }
