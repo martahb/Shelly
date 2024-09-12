@@ -143,7 +143,7 @@ function handleShellyBluEvent(eventData) {
         else if (humidity <= humiditySamples[0] && switchState) {
             console.log("Turned off switch - low humidity");
             humidityTriggerTime = null;
-            buttonTriggerTime = 
+            buttonTriggerTime = null;
             setSwitchState(!switchState);
         }
     }
