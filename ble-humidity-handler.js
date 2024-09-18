@@ -315,16 +315,16 @@ function handleShellyBluEvent(eventData) {
     } else {
         if (humidity > averageHumidity + HUMIDITY_THRESHOLD) {
             // Turn on fan
-            humidityTriggerTime = Date.now(); // Start humidity timer
             switchState = true;
-            setSwitchState(switchState);
+            turnItOnAgain(switchState,false);
             console.log("Started humidity switch");
         }
         else if (humidity <= humiditySamples[0] && switchState) {
             console.log("Turned off switch - low humidity");
-            humidityTriggerTime = null;
-            buttonTriggerTime = null;
-            setSwitchState(!switchState);
+//            humidityTriggerTime = null;
+//            buttonTriggerTime = null;
+//            setSwitchState(!switchState);
+            turnItOnAgain(false, false);
         }
     }
 
@@ -450,6 +450,7 @@ function updateHumiditySamples(humidity) {
     } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
         humiditySamples[humiditySamples.length] = humidity;
     }
+    print(bluMac);
 }
 
 // Example event data
