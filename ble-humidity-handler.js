@@ -1,11 +1,11 @@
 const HUMIDITY_THRESHOLD = 5;
 const SWITCH_ID = 0;
-const HUMIDITY_TIMEOUT = 20 * 1000 * 60; // 20 minutes
-const BUTTON_TIMEOUT = 10 * 1000 * 60; // 10 minutes
+const HUMIDITY_TIMEOUT = 1200; //20 * 1000 * 60; // 20 minutes
+const BUTTON_TIMEOUT = 600; //10 * 1000 * 60; // 10 minutes
 const MAX_HUMIDITY_SAMPLES = 10;
 const DEBUG = false;
 
-
+let timer = 600;
 let bluMac = null;
 let isSwitchOn = false;
 let humiditySamples = [];
@@ -47,12 +47,38 @@ function logger(message, prefix) {
 //
 // Sets the state of the switch.
 //
-function setSwitchState(state) {
-    Shelly.call("Switch.Set", { id: SWITCH_ID, on: state }, function (error_code, error_message) {
+function turnSwitchOn(timeout) {
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: true, toggle_after: timeout }, function (result, error_code, error_message, userdata) {
         if (error_code === 0) {
-            isSwitchOn = state;
+            isSwitchOn = true;
+            if (result.was_on === true) {
+                console.log("Switch was already on");
+                //                Shelly.call("Switch.Set", { id: SWITCH_ID, on: true, toggle_after: timer }, function (result, error_code, error_message, userdata) {
+                //                    if (error_code === 0) {
+                //                        isSwitchOn = true;
+                //                    } else {
+                //                        console.log("Error setting switch state:", error_message);
+                //                    }
+                //            });
+            } else {
+                console.log("Switch was off");
+            }
         } else {
-            console.log("Error setting switch state:", error_message);
+            console.log("Error setting switch state:", error_code, ", ", error_message);
+        }
+    });
+}
+
+function turnSwitchOff() {
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: false }, function (result, error_code, error_message, userdata) {
+        if (error_code !== 0) {
+            console.log("Error setting switch state:", error_code, ", ", error_message);
+            return;
+        }
+
+        isSwitchOn = false;
+        if (result.was_on === false) {
+            console.log("Switch was already off");
         }
     });
 }
@@ -87,14 +113,18 @@ function turnItOnAgain(turnOn, isButton) {
 function checkTimeouts() {
     const currentTime = Date.now();
 
-    if (isSwitchOn && buttonTriggerTime && (currentTime - buttonTriggerTime >= BUTTON_TIMEOUT)) {
+    if (!isSwitchOn) return;
+    if (buttonTriggerTime && (currentTime - buttonTriggerTime >= BUTTON_TIMEOUT)) {
         console.log("Button timeout reached. Turning off switch.");
-        turnItOnAgain(false, true);
+        turnSwitchOff();
+        buttonTriggerTime = null; // Stop button timer
+        return;
     }
 
-    if (isSwitchOn && humidityTriggerTime && (currentTime - humidityTriggerTime >= HUMIDITY_TIMEOUT)) {
+    if (humidityTriggerTime && (currentTime - humidityTriggerTime >= HUMIDITY_TIMEOUT)) {
         console.log("Humidity timeout reached. Turning off switch.");
-        turnItOnAgain(false, false);
+        turnSwitchOff();
+        humidityTriggerTime = null; // Stop humidity timer
     }
 }
 
@@ -125,8 +155,26 @@ function cleanupData() {
 // Handles the button press event.
 //
 function handleButtonPress() {
-    isSwitchOn = !isSwitchOn;
-    turnItOnAgain(isSwitchOn, true);
+    Shelly.call("Switch.Toggle", { id: SWITCH_ID }, function (result, error_code, error_message, userdata) {
+        if (error_code === 0) {
+            if (!result.was_on) {
+                isSwitchOn = false;
+                humidityTriggerTime = Date.now(); // Start humidity timer
+                console.log("Switch was off");
+            } else {
+                isSwitchOn = false;
+                humidityTriggerTime = null; // Stop humidity timer
+                console.log("Switch was on");
+            }
+        } else {
+            console.log("Error setting switch state:", error_message);
+        }
+    });
+    //    if (isSwitchOn) {
+    //    turnSwitchOff();
+    //    } else {
+    //      turnSwitchOn(BUTTON_TIMEOUT);
+    //    }
 }
 
 //
@@ -222,12 +270,14 @@ function handleShellyBluEvent(eventData) {
         if (humidity > averageHumidity + HUMIDITY_THRESHOLD) {
             // Turn on fan
             isSwitchOn = true;
-            turnItOnAgain(isSwitchOn, false);
+            //            turnItOnAgain(isSwitchOn, false);
+            turnSwitchOn(HUMIDITY_TIMEOUT);
             console.log("Started humidity switch");
         }
         else if (humidity <= humiditySamples[0] && isSwitchOn) {
             console.log("Turned off switch - low humidity");
-            turnItOnAgain(false, false);
+            //            turnItOnAgain(false, false);
+            turnSwitchOff();
         }
     }
 
@@ -249,19 +299,20 @@ function processEvent(button, humidity) {
     } else {
         const averageHumidity = calculateAverageHumidity();
         logger(["Average humidity calculated:", averageHumidity], "Info");
-
         if (isSwitchOn && humidity <= averageHumidity) {
             logger("Humidity dropped, turning off fan", "Info");
-            turnItOnAgain(false, false); // Turn off fan if humidity drops
+            turnSwitchOff();
+            //            turnItOnAgain(false, false); // Turn off fan if humidity drops
         } else if (!isSwitchOn && humidity > averageHumidity + HUMIDITY_THRESHOLD) {
             logger("Humidity increased, turning on fan", "Info");
-            turnItOnAgain(true, false); // Turn on fan if humidity rises
+            turnSwitchOn(HUMIDITY_TIMEOUT);
+            //            turnItOnAgain(true, false); // Turn on fan if humidity rises
         }
 
         // Update humidity samples
         updateHumiditySamples(humidity);
 
-        checkTimeouts();
+        //        checkTimeouts();
     }
 }
 //
@@ -315,7 +366,7 @@ function init() {
     } else {
         bluMac = "38:39:8f:70:b2:4e".toLowerCase(); // black
     }
-    setSwitchState(false); // Ensure switch is off at startup
+    turnSwitchOff(); // Ensure switch is off at startup
     Shelly.addEventHandler(handleShellyBluEvent);
 }
 
