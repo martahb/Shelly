@@ -5,6 +5,8 @@ const BUTTON_TIMEOUT = 600; //10 * 1000 * 60; // 10 minutes
 const MAX_HUMIDITY_SAMPLES = 10;
 const DEBUG = false;
 const FALLBACK_HUMIDITY = 50;
+const WHITE_MAC_ADDRESS = "7c:c6:b6:62:41:a7".toLowerCase();
+const BLACK_MAC_ADDRESS = "38:39:8f:70:b2:4e".toLowerCase();
 
 let timeout = 0;
 let bluMac = null;
@@ -12,7 +14,6 @@ let isSwitchOn = false;
 let humiditySamples = [];
 let humidityTriggerTime = null;
 let buttonTriggerTime = null;
-
 
 //
 // Logs the provided message if debug is enabled.
@@ -27,7 +28,6 @@ function logger(message, prefix) {
     // If the message is a list, loop over it
     if (Array.isArray(message)) {
         for (let i = 0; i < message.length; i++) {
-
             finalText = finalText + " " + JSON.stringify(message[i]);
         }
     } else {
@@ -77,18 +77,24 @@ function turnSwitchOff() {
     });
 }
 
-// Checks if any timeout has been reached and turns off the switch if needed.
 function checkTimeouts() {
     const currentTime = Date.now();
 
     if (!isSwitchOn) return;
+
+    checkButtonTimeout(currentTime);
+    checkHumidityTimeout(currentTime);
+}
+
+function checkButtonTimeout(currentTime) {
     if (buttonTriggerTime && (currentTime - buttonTriggerTime >= BUTTON_TIMEOUT)) {
         console.log("Button timeout reached. Turning off switch.");
         turnSwitchOff();
         buttonTriggerTime = null; // Stop button timer
-        return;
     }
+}
 
+function checkHumidityTimeout(currentTime) {
     if (humidityTriggerTime && (currentTime - humidityTriggerTime >= HUMIDITY_TIMEOUT)) {
         console.log("Humidity timeout reached. Turning off switch.");
         turnSwitchOff();
@@ -144,7 +150,6 @@ function handleButtonPress() {
 // Rounds a number to the nearest integer.
 //
 function roundNumber(num) {
-
     if (num < 0) {
         // Should not round negative numbers
         return 0; // Return 0 if negative
@@ -200,16 +205,21 @@ function handleShellyBluEvent(eventData) {
     }
     
     // Fetch current switch state and process data
-    Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
-        if (error_code === 0) {
-            switchState = result.output;
-//            processEvent(button, humidity);
+    // Update humidity samples
+    if (humidity !== null) {
+        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
+            // Shift elements to the left manually
+            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+                humiditySamples[i - 1] = humiditySamples[i];
+            }
+            if (!isNaN(averageHumidity)) {
+                humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = (humidity + ((MAX_HUMIDITY_SAMPLES - 1) * averageHumidity)) / MAX_HUMIDITY_SAMPLES;
+            }
         } else {
-            console.log("Error getting switch status:", error_message);
+            // Manually add the new humidity value to the array
+            humiditySamples[humiditySamples.length] = humidity;
         }
-    });
-
-    // Calculate average humidity
+    }
     const averageHumidity = calculateAverageHumidity();
     
     /**
@@ -228,41 +238,6 @@ function handleShellyBluEvent(eventData) {
             humiditySamples[humiditySamples.length] = humidity;
         }
     }
-    //    if (!eventData.info || eventData.info.event !== "shelly-blu" || eventData.info.data.address !== bluMac) return;
-
-    //const data = eventData.info.data;
-    //const humidity = data.humidity;
-    //const button = data.button;
-    //logger(["event received: ", eventData], "Info");
-
-    // Initialize humidity samples if empty
-    //if (humiditySamples.length === 0) {
-        //for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-//            humiditySamples[i] = humidity; // data.humidity;
-//        }
-//    }
-
-//    // Fetch current switch state and process data
-//    Shelly.call("Switch.GetStatus", { id: SWITCH_ID }, function (result, error_code, error_message) {
-//        if (error_code === 0) {
-//            isSwitchOn = result.output;
-//        } else {
-//            console.log("Error getting switch status:", error_message);
-//        }
-//    });
-//    // Calculate average humidity
-//    const averageHumidity = calculateAverageHumidity();
-//
-//    // Update humidity samples
-//    if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
-//        // Shift elements to the left manually
-//        for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-//            humiditySamples[i - 1] = humiditySamples[i];
-//        }
-//        if (!isNaN(averageHumidity)) {
-//            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = (humidity + ((MAX_HUMIDITY_SAMPLES - 1) * averageHumidity)) / MAX_HUMIDITY_SAMPLES;
-//        }
-//    }
 
     cleanupData();
 
@@ -276,13 +251,11 @@ function handleShellyBluEvent(eventData) {
         if (humidity > averageHumidity + HUMIDITY_THRESHOLD) {
             // Turn on fan
             isSwitchOn = true;
-            //            turnItOnAgain(isSwitchOn, false);
             turnSwitchOn(HUMIDITY_TIMEOUT);
             console.log("Started humidity switch");
         }
         else if (humidity <= humiditySamples[0] && isSwitchOn) {
             console.log("Turned off switch - low humidity");
-            //            turnItOnAgain(false, false);
             turnSwitchOff();
         }
     }
@@ -336,15 +309,14 @@ const eventData = {
 };
 
 function init() {
-    // Check the device MAC address and set the corresponding bluMac address
-    // Ensure the switch is off at startup
-    // Register the event handler for Shelly Blu events
     if (Shelly.getDeviceInfo().mac === "D4D4DA352694") {
-        bluMac = "7c:c6:b6:62:41:a7".toLowerCase(); // white
+        bluMac = WHITE_MAC_ADDRESS; // white
     } else {
-        bluMac = "38:39:8f:70:b2:4e".toLowerCase(); // black
+        bluMac = BLACK_MAC_ADDRESS; // black
     }
-    turnSwitchOff(); // Ensure switch is off at startup
+    // Ensure the switch is off at startup
+    turnSwitchOff();
+    // Register the event handler for Shelly Blu events
     Shelly.addEventHandler(handleShellyBluEvent);
 }
 
