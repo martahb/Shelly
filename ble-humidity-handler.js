@@ -205,6 +205,7 @@ function handleShellyBluEvent(eventData) {
         }
     }
     
+    // Fetch current switch state and process data
     // Update humidity samples
     function updateHumiditySamples(humidity) {
         if (humidity !== null) {
@@ -223,6 +224,22 @@ function handleShellyBluEvent(eventData) {
     }}
     averageHumidity = calculateAverageHumidity();
     
+    /**
+     * Updates the humidity samples without using push.
+     * 
+     * @param {number} humidity - The humidity value to add to the samples.
+     */
+//        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
+//            // Shift elements to the left manually
+//            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+//                humiditySamples[i - 1] = humiditySamples[i];
+//            }
+//            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
+//        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
+//            humiditySamples[humiditySamples.length] = humidity;
+//        }
+//    }
+
     cleanupData();
 
     logger(["cleaned Humidity Samples:", humiditySamples, " ", JSON.stringify(humiditySamples.length)], "Info");
@@ -251,6 +268,23 @@ function handleShellyBluEvent(eventData) {
     MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
     checkTimeouts();
 }
+
+//
+// Updates the humidity samples.
+//
+//function updateHumiditySamples(humidity) {
+//    if (humidity !== null) {
+//        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
+//            // Shift elements to the left manually
+//            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+//                humiditySamples[i - 1] = humiditySamples[i];
+//            }
+//            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
+//        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
+//            humiditySamples[humiditySamples.length] = humidity;
+//        }
+//    }
+//}
 
 // Example event data
 const eventData = {
