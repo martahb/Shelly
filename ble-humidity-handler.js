@@ -1,7 +1,7 @@
 const HUMIDITY_THRESHOLD = 5;
 const SWITCH_ID = 0;
 const HUMIDITY_TIMEOUT = 30 * 1000 * 60; // 30 minutes
-const BUTTON_TIMEOUT = 600; //10 * 1000 * 60; // 10 minutes
+const BUTTON_TIMEOUT = 10 * 1000 * 60; // 10 minutes
 const MAX_HUMIDITY_SAMPLES = 10;
 const DEBUG = false;
 const FALLBACK_HUMIDITY = 50;
@@ -14,6 +14,7 @@ let isSwitchOn = false;
 let humiditySamples = [];
 let humidityTriggerTime = null;
 let buttonTriggerTime = null;
+let averageHumidity = null;
 
 //
 // Logs the provided message if debug is enabled.
@@ -48,8 +49,8 @@ function logger(message, prefix) {
 //
 // Sets the state of the switch.
 //
-function turnSwitchOn(timeout) {
-    Shelly.call("Switch.Set", { id: SWITCH_ID, on: true, toggle_after: timeout }, function (result, error_code, error_message, userdata) {
+function turnSwitchOn() {
+    Shelly.call("Switch.Set", { id: SWITCH_ID, on: true }, function (result, error_code, error_message, userdata) {
         if (error_code === 0) {
             isSwitchOn = true;
             if (result.was_on === true) {
@@ -133,11 +134,11 @@ function handleButtonPress() {
         if (error_code === 0) {
             if (!result.was_on) {
                 isSwitchOn = true;
-                humidityTriggerTime = Date.now(); // Start humidity timer
+                buttonTriggerTime = Date.now(); // Start humidity timer
                 console.log("Switch was off");
             } else {
                 isSwitchOn = false;
-                humidityTriggerTime = null; // Stop humidity timer
+                buttonTriggerTime = null; // Stop humidity timer
                 console.log("Switch was on");
             }
         } else {
@@ -204,9 +205,9 @@ function handleShellyBluEvent(eventData) {
         }
     }
     
-    // Fetch current switch state and process data
     // Update humidity samples
-    if (humidity !== null) {
+    function updateHumiditySamples(humidity) {
+        if (humidity !== null) {
         if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
             // Shift elements to the left manually
             for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
@@ -219,26 +220,9 @@ function handleShellyBluEvent(eventData) {
             // Manually add the new humidity value to the array
             humiditySamples[humiditySamples.length] = humidity;
         }
-    }
-    const averageHumidity = calculateAverageHumidity();
+    }}
+    averageHumidity = calculateAverageHumidity();
     
-    /**
-     * Updates the humidity samples without using push.
-     * 
-     * @param {number} humidity - The humidity value to add to the samples.
-     */
-    function updateHumiditySamples(humidity) {
-        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
-            // Shift elements to the left manually
-            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-                humiditySamples[i - 1] = humiditySamples[i];
-            }
-            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
-        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
-            humiditySamples[humiditySamples.length] = humidity;
-        }
-    }
-
     cleanupData();
 
     logger(["cleaned Humidity Samples:", humiditySamples, " ", JSON.stringify(humiditySamples.length)], "Info");
@@ -248,15 +232,17 @@ function handleShellyBluEvent(eventData) {
         // Handle button input
         handleButtonPress();
     } else {
-        if (humidity > averageHumidity + HUMIDITY_THRESHOLD) {
+        if (!isSwitchOn && humidity > averageHumidity + HUMIDITY_THRESHOLD) {
             // Turn on fan
             isSwitchOn = true;
-            turnSwitchOn(HUMIDITY_TIMEOUT);
+            turnSwitchOn();
+            humidityTriggerTime = Date.now(); // Start humidity timer
             console.log("Started humidity switch");
         }
         else if (humidity <= humiditySamples[0] && isSwitchOn) {
             console.log("Turned off switch - low humidity");
             turnSwitchOff();
+            humidityTriggerTime = null; // Stop humidity timer
         }
     }
 
@@ -264,23 +250,6 @@ function handleShellyBluEvent(eventData) {
     MQTT.publish("test", JSON.stringify(data), 0, false);
     MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
     checkTimeouts();
-}
-
-//
-// Updates the humidity samples.
-//
-function updateHumiditySamples(humidity) {
-    if (humidity !== null) {
-        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
-            // Shift elements to the left manually
-            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-                humiditySamples[i - 1] = humiditySamples[i];
-            }
-            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
-        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
-            humiditySamples[humiditySamples.length] = humidity;
-        }
-    }
 }
 
 // Example event data
