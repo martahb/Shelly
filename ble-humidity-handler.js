@@ -15,6 +15,7 @@ let humiditySamples = [];
 let humidityTriggerTime = null;
 let buttonTriggerTime = null;
 let averageHumidity = null;
+var humidity = null;
 
 //
 // Logs the provided message if debug is enabled.
@@ -140,6 +141,9 @@ function handleButtonPress() {
                 isSwitchOn = false;
                 buttonTriggerTime = null; // Stop humidity timer
                 console.log("Switch was on");
+                for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+                    humiditySamples[i] = humidity; // data.humidity;
+                }
             }
         } else {
             console.log("Error setting switch state:", error_message);
@@ -186,26 +190,6 @@ function calculateAverageHumidity() {
     }
     return average;
 }
-
-//
-// Handles Shelly Blu events and processes button or humidity data.
-//
-function handleShellyBluEvent(eventData) {
-    if (!eventData.info || eventData.info.event !== "shelly-blu" || eventData.info.data.address !== bluMac) return;
-
-    const data = eventData.info.data;
-    const humidity = data.humidity;
-    const button = data.button;
-    logger(["event received: ", eventData], "Info");
-    
-    // Initialize humidity samples if empty
-    if (humiditySamples.length === 0) {
-        for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-            humiditySamples[i] = humidity; // data.humidity;
-        }
-    }
-    
-    // Fetch current switch state and process data
     // Update humidity samples
     function updateHumiditySamples(humidity) {
         if (humidity !== null) {
@@ -222,6 +206,28 @@ function handleShellyBluEvent(eventData) {
             humiditySamples[humiditySamples.length] = humidity;
         }
     }}
+
+//
+// Handles Shelly Blu events and processes button or humidity data.
+//
+function handleShellyBluEvent(eventData) {
+    if (!eventData.info || eventData.info.event !== "shelly-blu" || eventData.info.data.address !== bluMac) return;
+
+    const data = eventData.info.data;
+    humidity = data.humidity;
+    const button = data.button;
+    logger(["event received: ", eventData], "Info");
+    
+    // Initialize humidity samples if empty
+    if (humiditySamples.length === 0) {
+        for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+            humiditySamples[i] = humidity; // data.humidity;
+        }
+    } else {
+        updateHumiditySamples(humidity);
+    }
+    
+    // Fetch current switch state and process data
     averageHumidity = calculateAverageHumidity();
     
     /**
