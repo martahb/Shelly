@@ -2,6 +2,7 @@ const HUMIDITY_THRESHOLD = 5;
 const SWITCH_ID = 0;
 const HUMIDITY_TIMEOUT = 30 * 1000 * 60; // 30 minutes
 const BUTTON_TIMEOUT = 10 * 1000 * 60; // 10 minutes
+const EXTERNAL_SWITCH_TIMEOUT = 15 * 1000 * 60; // 15 minutes for external switch
 const MAX_HUMIDITY_SAMPLES = 10;
 const DEBUG = false;
 const FALLBACK_HUMIDITY = 50;
@@ -14,6 +15,7 @@ let isSwitchOn = false;
 let humiditySamples = [];
 let humidityTriggerTime = null;
 let buttonTriggerTime = null;
+let externalSwitchTriggerTime = null;
 let averageHumidity = null;
 var humidity = null;
 
@@ -86,6 +88,7 @@ function checkTimeouts() {
 
     checkButtonTimeout(currentTime);
     checkHumidityTimeout(currentTime);
+    checkExternalSwitchTimeout(currentTime);
 }
 
 function checkButtonTimeout(currentTime) {
@@ -101,6 +104,14 @@ function checkHumidityTimeout(currentTime) {
         console.log("Humidity timeout reached. Turning off switch.");
         turnSwitchOff();
         humidityTriggerTime = null; // Stop humidity timer
+    }
+}
+
+function checkExternalSwitchTimeout(currentTime) {
+    if (externalSwitchTriggerTime && (currentTime - externalSwitchTriggerTime >= EXTERNAL_SWITCH_TIMEOUT)) {
+        console.log("External switch timeout reached. Turning off switch.");
+        turnSwitchOff();
+        externalSwitchTriggerTime = null; // Stop external switch timer
     }
 }
 
@@ -274,23 +285,29 @@ function handleShellyBluEvent(eventData) {
     MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
     checkTimeouts();
 }
+//
+// Handles Shelly notification events.
+//
+function handleShellyNotification(eventData) {
+    if (eventData.component !== "shelly_notification:162") return;
 
-//
-// Updates the humidity samples.
-//
-//function updateHumiditySamples(humidity) {
-//    if (humidity !== null) {
-//        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
-//            // Shift elements to the left manually
-//            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-//                humiditySamples[i - 1] = humiditySamples[i];
-//            }
-//            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
-//        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
-//            humiditySamples[humiditySamples.length] = humidity;
-//        }
-//    }
-//}
+    const data = eventData.info;
+    if (data.id === SWITCH_ID && data.source === "loopback") {
+        logger(["Switch status changed: ", data], "Info");
+
+        if (data.output === true) {
+            // Switch turned on by external source
+            isSwitchOn = true;
+            externalSwitchTriggerTime = Date.now(); // Start external switch timer
+            console.log("Switch turned on by external source");
+        } else {
+            // Switch turned off by external source
+            isSwitchOn = false;
+            externalSwitchTriggerTime = null; // Stop external switch timer
+            console.log("Switch turned off by external source");
+        }
+    }
+}
 
 // Example event data
 const eventData = {
@@ -320,8 +337,7 @@ const eventData = {
 function init() {
     if (Shelly.getDeviceInfo().mac === "D4D4DA352694") {
         bluMac = WHITE_MAC_ADDRESS; // white
-    } else {
-        bluMac = BLACK_MAC_ADDRESS; // black
+    } else {; // black
     }
     // Ensure the switch is off at startup
     turnSwitchOff();
