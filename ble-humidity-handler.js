@@ -201,9 +201,9 @@ function calculateAverageHumidity() {
     }
     return average;
 }
-    // Update humidity samples
-    function updateHumiditySamples(humidity) {
-        if (humidity !== null) {
+// Update humidity samples
+function updateHumiditySamples(humidity) {
+    if (humidity !== null) {
         if (humiditySamples.length === MAX_HUMIDITY_SAMPLES) {
             // Shift elements to the left manually
             for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
@@ -216,7 +216,8 @@ function calculateAverageHumidity() {
             // Manually add the new humidity value to the array
             humiditySamples[humiditySamples.length] = humidity;
         }
-    }}
+    }
+}
 
 //
 // Handles Shelly Blu events and processes button or humidity data.
@@ -228,7 +229,7 @@ function handleShellyBluEvent(eventData) {
     humidity = data.humidity;
     const button = data.button;
     logger(["event received: ", eventData], "Info");
-    
+
     // Initialize humidity samples if empty
     if (humiditySamples.length === 0) {
         for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
@@ -237,25 +238,25 @@ function handleShellyBluEvent(eventData) {
     } else {
         updateHumiditySamples(humidity);
     }
-    
+
     // Fetch current switch state and process data
     averageHumidity = calculateAverageHumidity();
-    
+
     /**
      * Updates the humidity samples without using push.
      * 
      * @param {number} humidity - The humidity value to add to the samples.
      */
-//        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
-//            // Shift elements to the left manually
-//            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-//                humiditySamples[i - 1] = humiditySamples[i];
-//            }
-//            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
-//        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
-//            humiditySamples[humiditySamples.length] = humidity;
-//        }
-//    }
+    //        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
+    //            // Shift elements to the left manually
+    //            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+    //                humiditySamples[i - 1] = humiditySamples[i];
+    //            }
+    //            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
+    //        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
+    //            humiditySamples[humiditySamples.length] = humidity;
+    //        }
+    //    }
 
     cleanupData();
 
@@ -337,7 +338,8 @@ const eventData = {
 function init() {
     if (Shelly.getDeviceInfo().mac === "D4D4DA352694") {
         bluMac = WHITE_MAC_ADDRESS; // white
-    } else {; // black
+    } else {
+        ; // black
     }
     // Ensure the switch is off at startup
     turnSwitchOff();
