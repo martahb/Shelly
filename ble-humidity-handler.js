@@ -151,6 +151,7 @@ function handleButtonPress() {
             } else {
                 isSwitchOn = false;
                 buttonTriggerTime = null; // Stop humidity timer
+                externalSwitchTriggerTime = null;
                 console.log("Switch was on");
                 for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
                     humiditySamples[i] = humidity; // data.humidity;
@@ -201,6 +202,7 @@ function calculateAverageHumidity() {
     }
     return average;
 }
+
 // Update humidity samples
 function updateHumiditySamples(humidity) {
     if (humidity !== null) {
@@ -218,133 +220,105 @@ function updateHumiditySamples(humidity) {
         }
     }
 }
+function handleShellyExtStatus(statusData) {
+    checkTimeouts();
+    const source = statusData.delta.source;
+    const id = statusData.delta.id;
+    const output = statusData.delta.output;
+    logger("source: ", source, "id: ", id, "output: ", output, "Info");
+    if (output && id === SWITCH_ID && source === "button") {
+            if (output) {
+                isSwitchOn = true;
+                externalSwitchTriggerTime = Date.now(); // Start external timer
+            }
+            else {
+                            buttonTriggerTime = null; // Stop humidity timer
+                            externalSwitchTriggerTime = null;
+                            console.log("Switch was on");
+                            for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+                                humiditySamples[i] = humidity; // data.humidity;
+                            }
+                            isSwitchOn = false;
+                        }
+                    }
+                else {
+                    return;
+                }
+            }
 
 //
 // Handles Shelly Blu events and processes button or humidity data.
 //
 function handleShellyBluEvent(eventData) {
-    if (!eventData.info || eventData.info.event !== "shelly-blu" || eventData.info.data.address !== bluMac) return;
+        if (!eventData.info || eventData.info.event !== "shelly-blu" || eventData.info.data.address !== bluMac) return;
 
-    const data = eventData.info.data;
-    humidity = data.humidity;
-    const button = data.button;
-    logger(["event received: ", eventData], "Info");
+        const data = eventData.info.data;
+        humidity = data.humidity;
+        const button = data.button;
+        logger(["event received: ", eventData], "Info");
 
-    // Initialize humidity samples if empty
-    if (humiditySamples.length === 0) {
-        for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
-            humiditySamples[i] = humidity; // data.humidity;
-        }
-    } else {
-        updateHumiditySamples(humidity);
-    }
-
-    // Fetch current switch state and process data
-    averageHumidity = calculateAverageHumidity();
-
-    /**
-     * Updates the humidity samples without using push.
-     * 
-     * @param {number} humidity - The humidity value to add to the samples.
-     */
-    //        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
-    //            // Shift elements to the left manually
-    //            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
-    //                humiditySamples[i - 1] = humiditySamples[i];
-    //            }
-    //            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
-    //        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
-    //            humiditySamples[humiditySamples.length] = humidity;
-    //        }
-    //    }
-
-    cleanupData();
-
-    logger(["cleaned Humidity Samples:", humiditySamples, " ", JSON.stringify(humiditySamples.length)], "Info");
-
-    // Check if humidity is 10% above average
-    if (button) {
-        // Handle button input
-        handleButtonPress();
-    } else {
-        if (!isSwitchOn && humidity > averageHumidity + HUMIDITY_THRESHOLD) {
-            // Turn on fan
-            isSwitchOn = true;
-            turnSwitchOn();
-            humidityTriggerTime = Date.now(); // Start humidity timer
-            console.log("Started humidity switch");
-        }
-        else if (humidity <= humiditySamples[0] && isSwitchOn) {
-            console.log("Turned off switch - low humidity");
-            turnSwitchOff();
-            humidityTriggerTime = null; // Stop humidity timer
-        }
-    }
-
-    logger(["Shelly BLU device found ", JSON.stringify(data)], "Info");
-    MQTT.publish("test", JSON.stringify(data), 0, false);
-    MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
-    checkTimeouts();
-}
-//
-// Handles Shelly notification events.
-//
-function handleShellyNotification(eventData) {
-    if (eventData.component !== "shelly_notification:162") return;
-
-    const data = eventData.info;
-    if (data.id === SWITCH_ID && data.source === "loopback") {
-        logger(["Switch status changed: ", data], "Info");
-
-        if (data.output === true) {
-            // Switch turned on by external source
-            isSwitchOn = true;
-            externalSwitchTriggerTime = Date.now(); // Start external switch timer
-            console.log("Switch turned on by external source");
+        // Initialize humidity samples if empty
+        if (humiditySamples.length === 0) {
+            for (let i = 0; i < MAX_HUMIDITY_SAMPLES; i++) {
+                humiditySamples[i] = humidity; // data.humidity;
+            }
         } else {
-            // Switch turned off by external source
-            isSwitchOn = false;
-            externalSwitchTriggerTime = null; // Stop external switch timer
-            console.log("Switch turned off by external source");
+            updateHumiditySamples(humidity);
         }
+
+        // Fetch current switch state and process data
+        averageHumidity = calculateAverageHumidity();
+
+        cleanupData();
+
+        logger(["cleaned Humidity Samples:", humiditySamples, " ", JSON.stringify(humiditySamples.length)], "Info");
+
+        // Check if humidity is 10% above average
+        if (button) {
+            // Handle button input
+            handleButtonPress();
+        } else {
+            if (!isSwitchOn && humidity > averageHumidity + HUMIDITY_THRESHOLD) {
+                // Turn on fan
+                isSwitchOn = true;
+                turnSwitchOn();
+                humidityTriggerTime = Date.now(); // Start humidity timer
+                console.log("Started humidity switch");
+            }
+            else if (humidity <= humiditySamples[0] && isSwitchOn) {
+                console.log("Turned off switch - low humidity");
+                turnSwitchOff();
+                humidityTriggerTime = null; // Stop humidity timer
+            }
+        }
+
+        logger(["Shelly BLU device found ", JSON.stringify(data)], "Info");
+        MQTT.publish("test", JSON.stringify(data), 0, false);
+        MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
+        checkTimeouts();
     }
-}
+
+
 
 // Example event data
 const eventData = {
-    component: "script:1",
-    name: "script",
-    id: 1,
-    now: 1724280608.34067416191,
-    info: {
-        component: "script:1",
-        id: 1,
-        event: "shelly-blu",
-        data: {
-            encryption: false,
-            BTHome_version: 2,
-            pid: 169,
-            battery: 100,
-            humidity: 50,
-            button: 1,
-            temperature: 31.5,
-            rssi: -81,
-            address: "7c:c6:b6:62:41:a7",
-        },
-        ts: 1724275658.53,
-    }
+    id: 0,
+    output: true,
+    source: "button"
 };
 
 function init() {
     if (Shelly.getDeviceInfo().mac === "D4D4DA352694") {
         bluMac = WHITE_MAC_ADDRESS; // white
     } else {
-        ; // black
+        bluMac = BLACK_MAC_ADDRESS; // black
     }
+    console.log("koniec: ", bluMac);
     // Ensure the switch is off at startup
     turnSwitchOff();
     // Register the event handler for Shelly Blu events
     Shelly.addEventHandler(handleShellyBluEvent);
-}
+    Shelly.addStatusHandler(handleShellyExtStatus);
+};
 
 init();
