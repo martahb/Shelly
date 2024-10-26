@@ -230,6 +230,7 @@ function handleShellyExtStatus(statusData) {
             if (output) {
                 isSwitchOn = true;
                 externalSwitchTriggerTime = Date.now(); // Start external timer
+                console.log("Switch manually started");
             }
             else {
                             buttonTriggerTime = null; // Stop humidity timer
@@ -269,6 +270,22 @@ function handleShellyBluEvent(eventData) {
         // Fetch current switch state and process data
         averageHumidity = calculateAverageHumidity();
 
+        /**
+         * Updates the humidity samples without using push.
+         * 
+         * @param {number} humidity - The humidity value to add to the samples.
+         */
+        //        if (humiditySamples.length === MAX_HUMIDITY_SAMPLES && humidity !== null) {
+        //            // Shift elements to the left manually
+        //            for (let i = 1; i < MAX_HUMIDITY_SAMPLES; i++) {
+        //                humiditySamples[i - 1] = humiditySamples[i];
+        //            }
+        //            humiditySamples[MAX_HUMIDITY_SAMPLES - 1] = humidity;
+        //        } else if (humiditySamples.length < MAX_HUMIDITY_SAMPLES) {
+        //            humiditySamples[humiditySamples.length] = humidity;
+        //        }
+        //    }
+
         cleanupData();
 
         logger(["cleaned Humidity Samples:", humiditySamples, " ", JSON.stringify(humiditySamples.length)], "Info");
@@ -285,7 +302,7 @@ function handleShellyBluEvent(eventData) {
                 humidityTriggerTime = Date.now(); // Start humidity timer
                 console.log("Started humidity switch");
             }
-            else if (humidity <= humiditySamples[0] && isSwitchOn) {
+            else if (humidity <= humiditySamples[0] && isSwitchOn && humidityTriggerTime) {
                 console.log("Turned off switch - low humidity");
                 turnSwitchOff();
                 humidityTriggerTime = null; // Stop humidity timer
