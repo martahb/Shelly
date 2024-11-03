@@ -313,8 +313,8 @@ function handleShellyExtStatus(statusData) {
         }
 
         logger(["Shelly BLU device found ", JSON.stringify(data)], "Info");
-        MQTT.publish("test", JSON.stringify(data), 0, false);
-        MQTT.publish("array", JSON.stringify(humiditySamples), 0, false);
+        MQTT.publish(bluMac, JSON.stringify(data), 0, false);
+        MQTT.publish(bluMac, JSON.stringify(humiditySamples), 0, false);
         checkTimeouts();
     }
 
